@@ -123,8 +123,8 @@
     return 0;
   }
   function screenRadius(w, h, row) {
-    const near = Math.max(18, Math.min(28, Math.min(Math.max(1, w), Math.max(1, h)) * 0.064));
-    const scale = [0.62, 0.76, 0.88, 1][clamp(row | 0, 0, 3)];
+    const near = Math.max(30, Math.min(40, Math.min(Math.max(1, w), Math.max(1, h)) * 0.095));
+    const scale = [0.88, 0.92, 0.96, 1][clamp(row | 0, 0, 3)];
     return near * scale;
   }
   // Even columns. The far middle saucer sits just off a straight hang so a drop down the centre misses.

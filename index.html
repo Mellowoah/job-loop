@@ -40,7 +40,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 #app{position:fixed;inset:0;overflow:hidden;background:var(--bg-deep)}
 #stage{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-#arm{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+#arm{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 #fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
 .tabular{font-variant-numeric:tabular-nums}
 .layer{position:absolute;inset:0;pointer-events:none}
@@ -64,7 +64,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .btn-ghost svg{width:18px;height:18px}
 
 /* ---- HUD ---- */
-#hud{opacity:0;transform:translateY(-8px);transition:opacity .35s var(--ease),transform .35s var(--ease)}
+#hud{opacity:0;transform:translateY(-8px);transition:opacity .35s var(--ease),transform .35s var(--ease);z-index:12}
 #app.playing #hud{opacity:1;transform:none}
 #app:not(.playing) #hud *{pointer-events:none!important}
 .topbar{position:absolute;left:0;right:0;top:0;padding:calc(var(--sat) + 10px) calc(var(--sar) + 12px) 0 calc(var(--sal) + 12px);display:flex;gap:8px;align-items:flex-start;pointer-events:none}
@@ -2123,6 +2123,11 @@ function renderPixi(alpha) {
   });
   const arm = $("arm");
   if (arm) {
+    const tricks = document.getElementById("tricks");
+    if (tricks) {
+      const clip = Math.max(0, Math.round(app.getBoundingClientRect().bottom - tricks.getBoundingClientRect().top));
+      arm.style.clipPath = "inset(0 0 " + clip + "px 0)";
+    }
     if (arm.width !== Math.round(W * DPR)) { arm.width = Math.round(W * DPR); arm.height = Math.round(H * DPR); }
     const ag = arm.getContext("2d");
     ag.setTransform(1, 0, 0, 1, 0, 0); ag.clearRect(0, 0, arm.width, arm.height);
@@ -2147,7 +2152,6 @@ function drawPlates(g, t) {
     g.save();
     g.fillStyle = "rgba(8,6,20," + shadowA.toFixed(2) + ")";
     g.beginPath(); g.ellipse(q.x, q.y + shadowOff, r * 0.92, r * 0.42, 0, 0, TAU); g.filter = "blur(" + (2 + row) + "px)"; g.fill(); g.filter = "none";
-    if (row === 0) g.filter = "saturate(0.85) brightness(1.08)";
     g.translate(q.x, q.y); g.rotate(p.rot + (p.moving ? Math.sin(t * 3 + p.ph) * .2 : 0)); g.drawImage(img, -size, -size, size * 2, size * 2);
     g.filter = "none"; g.restore();
     if (reach === row) {

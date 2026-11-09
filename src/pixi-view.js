@@ -3,7 +3,6 @@
 (function (global) {
   const PIXI = global.PIXI;
   if (!PIXI) return;
-  const SCALE = [0.62, 0.75, 0.88, 1];
   const NAMES = ["plate-far.png", "plate-teal.png", "plate-candy.png", "plate-near.png"];
   let app = null;
   let ready = false;
@@ -189,15 +188,14 @@
       const src = list[i];
       const slot = ensurePlate(i);
       const row = Math.max(0, Math.min(3, src.row | 0));
-      const scale = SCALE[row];
-      const radius = Math.max(22, (src.r || 28) * (scale / 0.62));
+      const radius = src.r || 22;
       slot.body.texture = tex[src.fish ? "fish.png" : src.gold ? "plate-gold.png" : NAMES[row]];
       slot.body.position.set(src.x, src.y);
       slot.body.rotation = src.fish ? Math.sin((snap.t || 0) * 2 + src.x * 0.01) * 0.2 : (src.rot || 0);
       slot.body.width = src.fish ? radius * 2.6 : radius * 2;
       slot.body.height = src.fish ? radius * 1.35 : radius * 2;
-      slot.body.alpha = row === 0 ? 0.92 : 1;
-      slot.body.tint = row === 0 ? 0xfff6ea : 0xffffff;
+      slot.body.alpha = 1;
+      slot.body.tint = 0xffffff;
       const shadowA = 0.35 + row * 0.117;
       const shadowOff = 3 + row * (7 / 3);
       slot.shadow.position.set(src.x, src.y + shadowOff);

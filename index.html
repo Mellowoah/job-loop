@@ -231,8 +231,21 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 @media (max-height:700px){.card .blurb{display:none}.statsbars{display:none}}
 @media (max-width:430px){#xpTxt{display:none}}
 @media (max-width:360px){.scorecard{padding:6px 8px}.score{font-size:28px}.coins{display:none}}
-.modes{display:flex;gap:4px;padding:4px;border-radius:999px;background:var(--panel,rgba(20,16,12,.8));border:1px solid rgba(var(--accent-rgb,231,177,90),.35);margin:0 auto 10px;width:max-content;max-width:100%}
-.modes button{height:36px;padding:0 16px;border-radius:999px;font:600 14px var(--ui);color:var(--muted);display:inline-flex;align-items:center;gap:7px;transition:background .2s,color .2s}
+.modes{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:4px;border-radius:999px;background:var(--panel,rgba(20,16,12,.8));border:1px solid rgba(var(--accent-rgb,231,177,90),.35);margin:0 auto 10px;width:max-content;max-width:100%}
+.modes button{height:36px;padding:0 12px;border-radius:999px;font:600 13px var(--ui);color:var(--muted);display:inline-flex;align-items:center;gap:7px;transition:background .2s,color .2s}
+.stringpill,.ringbanner{position:absolute;z-index:6;left:50%;transform:translateX(-50%);pointer-events:none;font-family:Outfit,sans-serif;font-weight:800}
+.stringpill{top:78px;font-size:12px;letter-spacing:.08em;color:#ffe7a8;background:rgba(20,10,4,.72);border:1px solid rgba(231,177,90,.5);border-radius:999px;padding:4px 10px}
+.ringbanner{top:108px;font-size:14px;letter-spacing:.03em;color:#fff6df;text-shadow:0 2px 0 #1a0c06,0 0 12px rgba(0,0,0,.45);max-width:94%;text-align:center;white-space:nowrap}
+.turncard{position:absolute;inset:0;z-index:32;display:flex;align-items:center;justify-content:center;background:rgba(8,4,2,.78);padding:22px}
+.turncard[hidden]{display:none!important}
+.turninner{max-width:420px;width:100%;padding:22px 18px 18px;text-align:center;background:linear-gradient(180deg,#3a2414,#1a0e08);border-radius:18px}
+.turninner h2{font-family:"Lilita One",Outfit,sans-serif;font-size:34px;margin:8px 0;color:#ffe7a8;text-shadow:0 3px 0 #2a1408}
+.turninner p{color:#f6e7c8;font-size:16px;line-height:1.35}
+.turninner .kicker{font:800 13px Outfit,sans-serif;letter-spacing:.14em;color:#e7b15a}
+.shop-row{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;padding:10px 12px;margin:0 0 8px;border-radius:14px;background:rgba(255,255,255,.05);color:inherit}
+.shop-row b{font-family:"Lilita One",Outfit,sans-serif;font-size:18px}
+.shop-row span,.shop-row i{font-style:normal;color:var(--muted);font-size:13px}
+.shop-row:disabled{opacity:.55}
 .modes button[aria-pressed="true"]{background:linear-gradient(180deg,var(--accent-hi),var(--accent));color:var(--ink,#2a1c0e)}
 .plate-ico{width:14px;height:14px;border-radius:50%;background:radial-gradient(circle,#fff 0 18%,#d23a2a 19% 38%,#fff 39% 58%,#d23a2a 59% 78%,#f4ead6 79%);box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 
@@ -375,6 +388,8 @@ body:has(.sheet.on) .note{opacity:0}
     <div id="bossBar" class="bossbar frame" hidden><b id="bossName">Boss</b><div class="hp"><i id="bossHp"></i></div></div>
     <div id="lookTag" class="looktag frame round" hidden></div>
     <div id="callout" class="callout" aria-hidden="true"></div>
+    <div id="stringPill" class="stringpill" hidden>Strings 3</div>
+    <div id="ringBanner" class="ringbanner" hidden></div>
     <button type="button" id="chestBtn" class="chest-btn frame" hidden>Chest</button>
     <div class="bottombar">
       <div class="hint sr-only" id="hint"></div>
@@ -426,9 +441,10 @@ body:has(.sheet.on) .note{opacity:0}
           <span class="wk-n" id="weeklyName">This week</span>
           <span class="wk-p tabular" id="weeklyProg">0/8</span>
         </button>
-        <div class="modes" id="modes" role="group" aria-label="Mode"><button data-mode="free" aria-pressed="false">Free play</button><button data-mode="carnival" aria-pressed="true"><span class="plate-ico"></span>Carnival</button></div>
+        <div class="modes" id="modes" role="group" aria-label="Mode"><button data-mode="free" aria-pressed="false">Free</button><button data-mode="carnival" aria-pressed="true"><span class="plate-ico"></span>Carnival</button><button data-mode="fish">Lake</button><button data-mode="duel">Duel</button></div>
         <button class="btn-main" id="play">PLAY</button>
         <div class="row">
+          <button type="button" class="btn-ghost" id="shopBtn">Shop</button>
           <button type="button" class="btn-ghost" id="colBtn">Collection <span id="colCount">0/11</span></button>
           <button type="button" class="btn-ghost" id="achBtn">Badges</button>
           <button type="button" class="btn-ghost" id="statsBtn">Stats</button>
@@ -441,7 +457,28 @@ body:has(.sheet.on) .note{opacity:0}
     </div>
   </div>
 
+  <div id="duelBanner" class="turncard" hidden>
+    <div class="turninner frame">
+      <div class="kicker" id="duelLetters">P1 —   P2 —</div>
+      <h2 id="duelTitle">Player 1</h2>
+      <p id="duelBody">Set a mark.</p>
+      <button class="btn-main" id="duelGo" type="button">Ready</button>
+    </div>
+  </div>
+  <div id="runOver" class="turncard" hidden>
+    <div class="turninner frame">
+      <h2 id="runTitle">Run over</h2>
+      <p id="runBody"></p>
+      <button class="btn-main" id="runOk" type="button">Menu</button>
+    </div>
+  </div>
   <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="shopSheet" role="dialog" aria-label="Shop">
+    <div class="grab"></div><h2>Shop</h2>
+    <p class="fine">Small tracks. Nothing here changes the trick list. The shop opens after your first boss.</p>
+    <div id="shopList"></div>
+    <button class="btn-ghost" data-close type="button">Close</button>
+  </div>
   <div class="sheet" id="howSheet" role="dialog" aria-label="How to play">
     <div class="grab"></div><h2>How to play</h2>
     <ul class="how">
@@ -622,72 +659,156 @@ body:has(.sheet.on) .note{opacity:0}
     });
   }
 
+  function openRows(level) {
+    const lv = Math.max(1, level | 0);
+    if (lv >= 6) return 4;
+    if (lv >= 4) return 3;
+    if (lv >= 2) return 2;
+    return 1;
+  }
+  function openCells(level) {
+    const n = openRows(level);
+    return cells().filter(function (c) { return c.row < n; });
+  }
+  // Straight hang is the far ring only. A whip climbs toward the near ring.
+  function ringForAngle(absTheta) {
+    const a = Math.abs(absTheta) || 0;
+    if (a >= 1.15) return 3;
+    if (a >= 0.82) return 2;
+    if (a >= 0.56) return 1;
+    return 0;
+  }
+  function screenRadius(w, h) {
+    return Math.max(22, Math.min(36, Math.min(Math.max(1, w), Math.max(1, h)) * 0.05));
+  }
+  // Three columns across the width. The middle lane rests off the straight hang
+  // so a drop down the centre is not a free hit, and the path never crosses it.
+  const COL_REST = [0.16, 0.50, 0.84];
+  const COL_AMP = [0.045, 0.04, 0.045];
+  function playBand(h) {
+    const top = Math.max(96, h * 0.145);
+    const bot = h - Math.max(178, h * 0.25);
+    return { top: top, bot: Math.max(top + 80, bot) };
+  }
+  function screenSlot(row, col, w, h, t, level, phase) {
+    const band = playBand(h);
+    const yFrac = [0.03, 0.32, 0.60, 0.88][clamp(row | 0, 0, 3)];
+    const c = clamp(col | 0, 0, 2);
+    const y0 = band.top + (band.bot - band.top) * yFrac;
+    // The far-ring middle saucer sits off the straight hang. Nearer rings keep a true center column.
+    const hangBias = (row | 0) === 0 && c === 1 ? 0.15 : 0;
+    const x0 = w * (COL_REST[c] + hangBias);
+    const speed = speedFor(level, (row | 0) * 3 + c);
+    const motion = motionFor(row | 0, c);
+    const amp = w * COL_AMP[c];
+    const ph = phase || 0;
+    let x = x0;
+    let y = y0;
+    if (motion === "patrol") {
+      const cyc = Math.max(1.15, 2.5 / speed);
+      const p = ((t * speed + ph) % cyc) / cyc;
+      x += (p < 0.5 ? p * 4 - 1 : 3 - p * 4) * amp;
+    } else if (motion === "bob") {
+      y += Math.sin(t * speed * 1.2 + ph) * Math.min(20, (band.bot - band.top) * 0.04);
+      x += Math.sin(t * speed * 0.75 + ph) * amp * 0.7;
+    } else {
+      x += Math.sin(t * speed + ph) * amp;
+      y += Math.cos(t * speed * 0.72 + ph) * Math.min(14, (band.bot - band.top) * 0.028);
+    }
+    const r = screenRadius(w, h);
+    x = clamp(x, r + 4, w - r - 4);
+    y = clamp(y, band.top, band.bot);
+    return { x: x, y: y, r: r, x0: x0, y0: y0, amp: amp };
+  }
+  function hitSlop(w, r) {
+    const gap = Math.abs(0.66 - 0.04 - 0.5) * w;
+    return Math.max(12, Math.min(r, gap * 0.72));
+  }
+
   return {
     ROWS: ROWS, COLS: COLS, ROW_FRAC: ROW_FRAC, ROW_HALF: ROW_HALF,
     cells: cells, speedFor: speedFor, motionFor: motionFor, columnCenters: columnCenters,
     plateRadius: plateRadius, rowWorldY: rowWorldY, pose: pose, hitReach: hitReach, covers: covers,
     oldReachFraction: oldReachFraction, reachFraction: reachFraction,
+    openRows: openRows, openCells: openCells, ringForAngle: ringForAngle,
+    screenRadius: screenRadius, screenSlot: screenSlot, playBand: playBand, hitSlop: hitSlop,
+    COL_REST: COL_REST,
   };
 });
 
 </script>
 <script>
 "use strict";
-/* Saucer points. Chain (max ×3) is applied by the existing smash formula, not here.
-   Trick ×2/×3/×5 stays on trick awards. Grades stack inside a cap so a perfect
-   far gold saucer cannot run away from a normal hit at the same level. */
+/* Spec scoring. Score and XP are separate. Chain and level never enter XP. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.YoScore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  const BASE = 96;
-  const ROW_PAY = [1.42, 1.22, 1.08, 1];
-  const GRADE_PAY = { perfect: 1.2, great: 1.1, good: 1 };
-  const GOLD_PAY = 1.35;
-  const SHAPE_CAP = 2.5;
-  const CHAIN_CAP = 3;
+  const RING = [1, 1.25, 1.5, 2];
+  const GRADE = { good: 1, great: 1.2, perfect: 1.5 };
+  const GRADE_XP = { good: 1, great: 1.2, perfect: 1.5 };
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function levelOf(level) { return Math.max(1, level | 0); }
 
-  function levelPay(level) {
-    const lv = Math.max(1, level | 0);
-    return 1 + Math.min(0.55, (lv - 1) * 0.03);
+  function basePoints(level) {
+    return Math.round(100 * Math.pow(1.06, levelOf(level) - 1));
   }
-  function speedPay(speed) {
-    const s = speed > 0 ? speed : 0.8;
-    return clamp(0.92 + (s - 0.7) * 0.28, 0.88, 1.28);
+  function chainCap(level) {
+    return 2 + 0.5 * Math.floor(levelOf(level) / 10);
   }
-  function reachPay(reachFrac) {
-    const r = reachFrac > 0 ? reachFrac : 0.5;
-    return clamp(0.9 + r * 0.35, 0.9, 1.26);
+  function chainMult(chain, level) {
+    const c = Math.max(1, chain | 0);
+    return Math.min(1 + 0.25 * (c - 1), chainCap(level));
   }
-  function gradePay(grade) {
-    return GRADE_PAY[grade] || 1;
+  function trickMult(distinct) {
+    const n = Math.max(0, distinct | 0);
+    return Math.min(2.5, 1 + 0.25 * n);
   }
+  function ringPay(row) {
+    const i = clamp(row | 0, 0, 3);
+    return RING[i];
+  }
+  function gradePay(grade) { return GRADE[grade] || 1; }
+  function gradeXp(grade) { return GRADE_XP[grade] || 1; }
 
-  function shape(o) {
-    const row = Math.max(0, Math.min(3, o.row | 0));
-    const raw = ROW_PAY[row] * speedPay(o.speed) * reachPay(o.reachFrac) * gradePay(o.grade) * (o.gold ? GOLD_PAY : 1);
-    return { raw: raw, capped: Math.min(raw, SHAPE_CAP) };
+  function hitScore(opts) {
+    const o = opts || {};
+    const gold = o.gold ? 2 : 1;
+    const raw = basePoints(o.level) * ringPay(o.row) * gradePay(o.grade) * gold * chainMult(o.chain || 1, o.level) * trickMult(o.tricks || 0);
+    return Math.max(1, Math.round(raw));
   }
-
-  function saucerBase(o) {
-    const shaped = shape(o || {});
-    return Math.max(1, Math.round(BASE * levelPay(o && o.level) * shaped.capped));
+  function hitXP(opts) {
+    const o = opts || {};
+    return Math.max(1, Math.round(10 * ringPay(o.row) * gradeXp(o.grade)));
   }
+  function lineBonus(level) { return basePoints(level) * 5; }
+  function trickScore(base, level, combo) {
+    const c = Math.max(1, combo | 0);
+    return Math.round(base * Math.pow(1.06, levelOf(level) - 1) * (1 + 0.5 * (c - 1)));
+  }
+  function trickXP(base) { return Math.max(1, Math.round((base || 0) / 10)); }
+  function coinsForHit(level, gold) {
+    return 1 + Math.floor(levelOf(level) / 10) + (gold ? 3 : 0);
+  }
+  function bossHp(level) { return 3 + Math.floor(levelOf(level) / 5); }
+  function xpNeed(level) { return Math.round(250 * Math.pow(levelOf(level), 1.3)); }
 
-  function withChain(base, chain) {
-    const steps = Math.max(1, chain | 0);
-    const mult = Math.min(CHAIN_CAP, 1 + (steps - 1) * 0.5);
-    return { points: Math.round(base * mult), mult: mult };
+  // Pre-chain plate value. smashPlate applies chainMult.
+  function saucerBase(opts) {
+    const o = opts || {};
+    const gold = o.gold ? 2 : 1;
+    const raw = basePoints(o.level) * ringPay(o.row) * gradePay(o.grade) * gold * trickMult(o.tricks || 0);
+    return Math.max(1, Math.round(raw));
   }
 
   return {
-    BASE: BASE, ROW_PAY: ROW_PAY, GRADE_PAY: GRADE_PAY, GOLD_PAY: GOLD_PAY,
-    SHAPE_CAP: SHAPE_CAP, CHAIN_CAP: CHAIN_CAP,
-    levelPay: levelPay, speedPay: speedPay, reachPay: reachPay, gradePay: gradePay,
-    shape: shape, saucerBase: saucerBase, withChain: withChain,
+    RING: RING, GRADE: GRADE, GRADE_XP: GRADE_XP,
+    basePoints: basePoints, chainCap: chainCap, chainMult: chainMult, trickMult: trickMult,
+    ringPay: ringPay, hitScore: hitScore, hitXP: hitXP, lineBonus: lineBonus,
+    trickScore: trickScore, trickXP: trickXP, coinsForHit: coinsForHit, bossHp: bossHp,
+    xpNeed: xpNeed, saucerBase: saucerBase,
   };
 });
 
@@ -703,8 +824,16 @@ body:has(.sheet.on) .note{opacity:0}
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.YoProgress = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  const DUPLICATE_COINS = 20;
-  const WEEKLY_COINS = 15;
+  const DUPLICATE_COINS = 50;
+  const WEEKLY_COINS = 150;
+  const RARITY_RANK = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 };
+  const LOOK_PRICE = { common: 150, uncommon: 400, rare: 900, epic: 1600, legendary: 2500 };
+  const BACKDROPS = [
+    { id: "boardwalk", name: "Night boardwalk", price: 0 },
+    { id: "midway", name: "Midway lamps", price: 1500 },
+    { id: "pier", name: "Pier lights", price: 1500 },
+    { id: "lake", name: "Lake night", price: 1500 },
+  ];
   const PLAYABLE = ["pocket", "maple", "brass", "hound", "orbit", "night", "flower", "diamond"];
   const THEMES = ["gold", "neon", "sunset"];
   const WEIGHT = { common: 50, uncommon: 28, rare: 14, epic: 6, legendary: 2 };
@@ -809,20 +938,27 @@ body:has(.sheet.on) .note{opacity:0}
   }
   function xpNeed(lvl) {
     const lv = Math.max(1, lvl | 0);
-    const hits = 4 + Math.floor(lv * 1.35);
-    return Math.round(hits * (80 + lv * 22) * MOVE_PAY[motionFor(lv)]);
+    return Math.round(250 * Math.pow(lv, 1.3));
   }
   function defaultStats() {
-    return { throws: 0, plates: 0, perfects: 0, greats: 0, goods: 0, bosses: 0, chests: 0, weeklies: 0, playSeconds: 0, bestChain: 0, bestStreak: 0 };
+    return {
+      throws: 0, plates: 0, perfects: 0, greats: 0, goods: 0, bosses: 0, chests: 0, weeklies: 0,
+      playSeconds: 0, bestChain: 0, bestStreak: 0, runs: 0, sessions: 0, runSeconds: 0, lines: 0,
+      hitsByRing: [0, 0, 0, 0],
+    };
   }
+  function defaultUpgrades() { return { bearing: 0, strings: 0, gold: 0 }; }
   function defaultSave() {
     return {
+      schemaVersion: 4,
       selected: "pocket", best: 0, tricks: {}, sound: true, haptics: true, tilt: true, carnival: true, theme: "gold",
       xp: 0, level: 1, coins: 0, codes: {}, plates: 0, seenInfo: false, shake: true, seed: "",
       claimedChests: {}, revealQueue: [], bossesCleared: {}, pendingBosses: [], achievements: {},
       stats: defaultStats(), streak: { count: 0, lastDay: "", best: 0 },
       weekly: { key: "", id: "", progress: 0, goal: 0, claimed: false, rewarded: false },
       cosmetic: "", ownedCosmetics: [], milestonesInitialized: false,
+      upgrades: defaultUpgrades(), ownedBackdrops: ["boardwalk"], backdrop: "boardwalk",
+      fishBest: 0, fishCaught: 0, shopUnlocked: false, bossGate: 0,
     };
   }
   function freshSave() {
@@ -863,6 +999,19 @@ body:has(.sheet.on) .note{opacity:0}
     base.weeklies = Math.floor(base.weeklies);
     base.bestChain = Math.floor(base.bestChain);
     base.bestStreak = Math.floor(base.bestStreak);
+    base.runs = Math.floor(base.runs || 0);
+    base.sessions = Math.floor(base.sessions || 0);
+    base.lines = Math.floor(base.lines || 0);
+    base.runSeconds = Math.max(0, asNum(base.runSeconds) || 0);
+    const rings = [0, 0, 0, 0];
+    for (const src of sources) {
+      if (!src || !Array.isArray(src.hitsByRing)) continue;
+      for (let i = 0; i < 4; i++) {
+        const n = asNum(src.hitsByRing[i]);
+        if (n != null && n >= 0) rings[i] = Math.min(1e12, Math.floor(n));
+      }
+    }
+    base.hitsByRing = rings;
     return base;
   }
   function sanitizeCodes(raw, fallback) {
@@ -929,6 +1078,14 @@ body:has(.sheet.on) .note{opacity:0}
     if (!c) return cfg;
     return Object.assign({}, cfg, { look: c.look, finish: c.finish, cap: c.cap, rimStyle: c.rimStyle, trail: c.trail || "" });
   }
+  function gradeReach(distance, width) {
+    const w = Math.max(1, asNum(width) == null ? 1 : width);
+    const dist = Math.max(0, asNum(distance) == null ? w : distance);
+    const ratio = dist / w;
+    if (ratio <= 0.25) return "perfect";
+    if (ratio <= 0.55) return "great";
+    return "good";
+  }
   function gradeHit(distance, radius) {
     const r = Math.max(1, asNum(radius) == null ? 1 : radius);
     const dist = Math.max(0, asNum(distance) == null ? r : distance);
@@ -948,7 +1105,7 @@ body:has(.sheet.on) .note{opacity:0}
   }
   function comboCallout(combo) {
     const m = comboMultiplier(combo);
-    if (m === 2 || m === 3 || m === 5) return "×" + m;
+    if (m === 2 || m === 3 || m === 4) return "×" + m;
     return "";
   }
   function trickPoints(base, combo) {
@@ -960,13 +1117,19 @@ body:has(.sheet.on) .note{opacity:0}
     const tier = lv / 5;
     const b = BOSSES[(tier - 1) % BOSSES.length];
     const cycle = Math.floor((tier - 1) / BOSSES.length);
-    return { name: b.name, level: lv, hp: Math.min(6, b.hp + cycle) };
+    return { name: b.name, level: lv, hp: 3 + Math.floor(lv / 5), cycle: cycle };
   }
 
   function rollChest(save, level) {
     const owned = new Set(save.ownedCosmetics || []);
     const pool = COSMETICS.filter((c) => !owned.has(c.id));
-    if (!pool.length) return { kind: "coins", coins: DUPLICATE_COINS, cosmeticId: "", rarity: "" };
+    if (!pool.length) {
+      const all = COSMETICS;
+      const idx = hashStr(String(save.seed) + ":dup:" + level) % all.length;
+      const c = all[idx];
+      const coins = 50 * (RARITY_RANK[c.rarity] || 1);
+      return { kind: "coins", coins: coins, cosmeticId: c.id, rarity: c.rarity };
+    }
     const bag = pool.map((c) => ({ c, w: WEIGHT[c.rarity] || 1 }));
     let total = 0;
     for (const b of bag) total += b.w;
@@ -1010,28 +1173,106 @@ body:has(.sheet.on) .note{opacity:0}
   function continueBoss(specHp, carry) {
     const full = Math.max(1, specHp | 0);
     if (!carry || !(carry.hp > 0)) return { hp: full, maxHp: full, resumed: false };
-    const maxHp = Math.max(1, Math.min(6, ((carry.maxHp > 0 ? carry.maxHp : full) | 0)));
+    const maxHp = Math.max(1, Math.min(40, ((carry.maxHp > 0 ? carry.maxHp : full) | 0)));
     const hp = Math.max(1, Math.min(maxHp, carry.hp | 0));
     return { hp, maxHp, resumed: true };
   }
 
-  function addXp(save, pts) {
-    if (typeof pts !== "number" || !Number.isFinite(pts) || pts <= 0) return [];
-    const add = Math.round(pts);
-    if (add <= 0) return [];
-    save.xp = Math.max(0, Math.round(save.xp || 0)) + add;
+  function addXp(save, pts, opts) {
+    const gate = !!(opts && opts.gate);
+    if (typeof pts === "number" && Number.isFinite(pts) && pts > 0) {
+      const add = Math.round(pts);
+      if (add > 0) save.xp = Math.max(0, Math.round(save.xp || 0)) + add;
+    } else if (!(save.xp > 0)) return [];
     const reached = [];
     let guard = 0;
     while (save.xp >= xpNeed(save.level) && guard++ < 80) {
       const need = xpNeed(save.level);
       if (!(need > 0)) break;
+      const next = save.level + 1;
+      if (gate && next % 5 === 0 && !save.bossesCleared[String(next)]) {
+        save.bossGate = next;
+        break;
+      }
       save.xp -= need;
-      save.level += 1;
+      save.level = next;
       reached.push(save.level);
-      onMilestone(save, save.level);
+      onMilestone(save, save.level, { queueBoss: !gate });
     }
     if (save.xp < 0) save.xp = 0;
     return reached;
+  }
+
+  function grantBossWin(save, level) {
+    const n = level | 0;
+    if (n <= 0 || n % 5 !== 0) return false;
+    const key = String(n);
+    const gated = (save.bossGate | 0) === n;
+    if (!save.bossesCleared[key]) {
+      save.bossesCleared[key] = true;
+      save.stats.bosses = (save.stats.bosses || 0) + 1;
+    }
+    save.pendingBosses = (save.pendingBosses || []).filter((l) => String(l) !== key);
+    const tier = n / 5;
+    save.coins = (save.coins || 0) + 25 * tier;
+    save.shopUnlocked = true;
+    if (!gated) return true;
+    const need = xpNeed(save.level);
+    save.xp = Math.max(0, (save.xp || 0) - need);
+    save.level = n;
+    save.bossGate = 0;
+    onMilestone(save, n, { queueBoss: false });
+    addXp(save, 0, { gate: true });
+    return true;
+  }
+
+  function stringCount(save) {
+    const t = Math.min(5, Math.max(0, ((save && save.upgrades && save.upgrades.strings) || 0) | 0));
+    return 3 + (t >= 2 ? 1 : 0) + (t >= 4 ? 1 : 0) + (t >= 5 ? 1 : 0);
+  }
+  function upgradeCost(tier) {
+    const n = Math.max(1, tier | 0);
+    return 150 * Math.pow(2, n - 1);
+  }
+  function buyUpgrade(save, track) {
+    if (!save || !save.shopUnlocked) return { ok: false, reason: "locked" };
+    if (track !== "bearing" && track !== "strings" && track !== "gold") return { ok: false, reason: "track" };
+    if (!save.upgrades) save.upgrades = defaultUpgrades();
+    const cur = save.upgrades[track] | 0;
+    if (cur >= 5) return { ok: false, reason: "max" };
+    const next = cur + 1;
+    if ((save.level | 0) < 5 * next) return { ok: false, reason: "level" };
+    const cost = upgradeCost(next);
+    if ((save.coins || 0) < cost) return { ok: false, reason: "coins" };
+    save.coins -= cost;
+    save.upgrades[track] = next;
+    return { ok: true, tier: next, cost: cost };
+  }
+  function buyLook(save, id) {
+    if (!save || !save.shopUnlocked) return { ok: false, reason: "locked" };
+    const c = COSMETICS.find((x) => x.id === id);
+    if (!c) return { ok: false, reason: "missing" };
+    if ((save.ownedCosmetics || []).includes(id)) return { ok: false, reason: "owned" };
+    const cost = LOOK_PRICE[c.rarity] || 150;
+    if ((save.coins || 0) < cost) return { ok: false, reason: "coins" };
+    save.coins -= cost;
+    save.ownedCosmetics.push(id);
+    return { ok: true, cost: cost };
+  }
+  function buyBackdrop(save, id) {
+    if (!save || !save.shopUnlocked) return { ok: false, reason: "locked" };
+    const b = BACKDROPS.find((x) => x.id === id);
+    if (!b) return { ok: false, reason: "missing" };
+    if (!save.ownedBackdrops) save.ownedBackdrops = ["boardwalk"];
+    if (save.ownedBackdrops.includes(id)) {
+      save.backdrop = id;
+      return { ok: true, cost: 0, equipped: true };
+    }
+    if ((save.coins || 0) < b.price) return { ok: false, reason: "coins" };
+    save.coins -= b.price;
+    save.ownedBackdrops.push(id);
+    save.backdrop = id;
+    return { ok: true, cost: b.price };
   }
 
   function defeatBoss(save, level) {
@@ -1227,6 +1468,22 @@ body:has(.sheet.on) .note{opacity:0}
     }
     save.milestonesInitialized = merged.milestonesInitialized === true || fb.milestonesInitialized === true;
     if (save.cosmetic && !save.ownedCosmetics.includes(save.cosmetic)) save.cosmetic = "";
+    save.schemaVersion = 4;
+    const up = isObj(merged.upgrades) ? merged.upgrades : (isObj(fb.upgrades) ? fb.upgrades : {});
+    const tier = (v) => { const n = asNum(v); return n == null || n < 0 ? 0 : Math.min(5, Math.floor(n)); };
+    save.upgrades = { bearing: tier(up.bearing), strings: tier(up.strings), gold: tier(up.gold) };
+    const knownBacks = new Set(BACKDROPS.map((b) => b.id));
+    const backSrc = Array.isArray(merged.ownedBackdrops) ? merged.ownedBackdrops : (Array.isArray(fb.ownedBackdrops) ? fb.ownedBackdrops : ["boardwalk"]);
+    save.ownedBackdrops = [];
+    for (const id of backSrc) if (knownBacks.has(id) && !save.ownedBackdrops.includes(id)) save.ownedBackdrops.push(id);
+    if (!save.ownedBackdrops.includes("boardwalk")) save.ownedBackdrops.unshift("boardwalk");
+    const bd = typeof merged.backdrop === "string" ? merged.backdrop : (typeof fb.backdrop === "string" ? fb.backdrop : "boardwalk");
+    save.backdrop = save.ownedBackdrops.includes(bd) ? bd : "boardwalk";
+    save.fishBest = Math.round(pickNum(merged.fishBest, fb.fishBest, 0, 1e12, 0));
+    save.fishCaught = Math.floor(pickNum(merged.fishCaught, fb.fishCaught, 0, 1e12, 0));
+    save.shopUnlocked = merged.shopUnlocked === true || fb.shopUnlocked === true;
+    const gate = asNum(merged.bossGate);
+    save.bossGate = gate != null && gate > save.level && gate % 5 === 0 ? Math.floor(gate) : 0;
     return save;
   }
 
@@ -1244,6 +1501,15 @@ body:has(.sheet.on) .note{opacity:0}
     const merged = Object.assign(defaultSave(), parsedV2.ok ? v2 : {}, parsedV3.ok ? v3 : {});
     const save = sanitize(merged, fallback, opts || {});
     let dirty = false;
+    const incomingSchema = parsedV3.ok ? (asNum(v3.schemaVersion) || 0) : 0;
+    if (incomingSchema < 4) {
+      for (let lv = 5; lv <= save.level; lv += 5) save.bossesCleared[String(lv)] = true;
+      const cap = Math.max(0, xpNeed(save.level) - 1);
+      if (save.xp > cap) save.xp = cap;
+      save.bossGate = 0;
+      save.schemaVersion = 4;
+      dirty = true;
+    }
     const hadSeed = (parsedV2.ok && typeof v2.seed === "string" && v2.seed) || (parsedV3.ok && typeof v3.seed === "string" && v3.seed);
     if (!hadSeed && opts && opts.seed) save.seed = opts.seed;
     if (!save.seed) {
@@ -1299,11 +1565,13 @@ body:has(.sheet.on) .note{opacity:0}
   return {
     COSMETICS, ACHIEVEMENTS, DUPLICATE_COINS, WEEKLY_COINS, PLAYABLE,
     xpNeed, motionFor, freshSave, defaultSave, loadFromBuckets, resetProgress, sanitize,
-    addXp, onMilestone, rollChest, defeatBoss, bossFor, continueBoss,
+    addXp, onMilestone, rollChest, defeatBoss, grantBossWin, bossFor, continueBoss,
+    stringCount, upgradeCost, buyUpgrade, buyLook, buyBackdrop,
+    BACKDROPS, LOOK_PRICE, RARITY_RANK,
     touchStreak, localDay, prevDay, isoWeekKey, ensureWeekly, bumpWeekly, weeklyFor, weeklyById,
     registerWeekly, unregisterWeekly, weekCount,
     syncAchievements, achievement, equipCosmetic, cosmetic, visualModel,
-    gradeHit, gradeWord, comboMultiplier, comboCallout, trickPoints, summary, hashStr,
+    gradeHit, gradeReach, gradeWord, comboMultiplier, comboCallout, trickPoints, summary, hashStr,
   };
 });
 
@@ -1399,6 +1667,10 @@ body:has(.sheet.on) .note{opacity:0}
         ["Chests", s.chests || 0],
         ["Weeks cleared", s.weeklies || 0],
         ["Looks", (d.ownedCosmetics || []).length + " / 11"],
+        ["Runs", s.runs || 0],
+        ["Lines", s.lines || 0],
+        ["Ring hits", (s.hitsByRing || [0, 0, 0, 0]).join(" · ")],
+        ["Lake best", d.fishBest || 0],
         ["Play time", fmtTime(s.playSeconds || 0)],
       ];
       list.innerHTML = rows.map(([k, v]) => `<div class="statrow"><span>${k}</span><b class="tabular">${v}</b></div>`).join("");
@@ -1468,7 +1740,7 @@ body:has(.sheet.on) .note{opacity:0}
         return;
       }
       card.dataset.stage = "0";
-      if (btn) btn.textContent = "Skip";
+      if (btn) { btn.textContent = "Skip"; btn.hidden = true; }
       let i = 0;
       clearTimeout(revealTimer);
       const stages = ["0", "1", "2", "3", "4"];
@@ -1477,13 +1749,14 @@ body:has(.sheet.on) .note{opacity:0}
         card.dataset.stage = stages[i];
         if (i === 2) { try { sfx.coin(); } catch (e) {} }
         if (i === 4) {
-          if (btn) btn.textContent = more ? "Next" : "Nice";
+          if (btn) { btn.hidden = false; btn.textContent = more ? "Next" : "Wear it"; }
           try { sfx.fanfare(); buzz([12, 30, 18]); } catch (e) {}
           return;
         }
         i += 1;
-        revealTimer = setTimeout(step, 680);
+        revealTimer = setTimeout(step, 120);
       };
+      setTimeout(() => { if (btn && !rootEl.hidden) btn.hidden = false; }, 400);
       step();
     }
 
@@ -1719,11 +1992,18 @@ function platePoints(spec, gold) {
   const pts = Math.round((80 + spec.lv * 22) * spec.movePay * (spec.radius < Math.max(42, (S.R || 28) * 1.6) * 1.25 ? 1.12 : 1));
   return gold ? Math.round(pts * 1.5) : pts;
 }
+let sessionMode = "carnival";
+const duel = { on: false, locked: false, turn: 0, letters: ["", ""], mark: null, scoreAt: 0, tricksAt: null, over: false, setter: 0 };
+function turnLocked() { return !!(duel.on && duel.locked); }
 function levelLine(lv) {
-  const s = stageSpec(lv);
-  const move = { still: "Plates hold still", sway: "Plates sway", drift: "Plates drift", lane: "Plates patrol", orbit: "Plates loop" }[s.motion];
-  const size = s.lv <= 2 ? "Large" : s.lv <= 6 ? "Mid" : "Tight";
-  return size + " · " + s.alive + " up · " + move;
+  if (sessionMode === "fish") return "Lake · hook 3 · bind to bank";
+  if (sessionMode === "duel") return "Trick duel · pass and play";
+  if (!store.d.carnival) return "Free play";
+  const rows = YoSaucers.openRows(lv);
+  const n = YoSaucers.openCells(lv).length;
+  const gate = store.d.bossGate | 0;
+  if (gate) return "Boss · level " + gate + " · 45s";
+  return rows + (rows === 1 ? " ring" : " rings") + " · " + n + " saucers · moving";
 }
 function spinsForThrow(power, wrist, boost) {
   const hard = clamp((power - .35) / .65, 0, 1);
@@ -1818,7 +2098,7 @@ function layoutSim(S, w, h, ins) {
   if (S.L > S.Lmax) S.L = S.Lmax;
   if (S.attract) resetAttract(S);
 }
-function applyYoyo(S, id) { S.cfg = YO[id] || YO.pocket; }
+function applyYoyo(S, id) { S.cfg = Object.assign({}, YO[id] || YO.pocket); S.baseDrag = S.cfg.spinDrag; }
 function modelVis() {
   const id = store.d && store.d.cosmetic;
   if (!id) return S.cfg;
@@ -1869,12 +2149,21 @@ function doThrow(S, power) {
   const count = spinsForThrow(power, wrist, S.cfg.throwBoost);
   S.spinsGranted = count;
   S.spin = count;
-  const side = S.pendingSide || (wrist ? Math.sign(wrist) * 36 : 0) || S.hand.vx * .9; S.pendingSide = 0;
-  S.rollDir = side === 0 ? (Math.random() < .5 ? -1 : 1) : Math.sign(side);
+  const side = S.pendingSide || (wrist ? Math.sign(wrist) * 36 : 0) || S.hand.vx * .9;
+  const aimX = S.pendingAimX != null ? S.pendingAimX : side;
+  const aimY = S.pendingAimY == null ? 1 : S.pendingAimY;
+  S.pendingSide = 0; S.pendingAimX = null; S.pendingAimY = null;
+  const ax = aimX || 0;
+  const ay = Math.max(0.2, Math.abs(aimY) < 0.05 ? 1 : Math.abs(aimY));
+  const mag = Math.hypot(ax, ay) || 1;
+  const speed = (460 + power * 700) * S.scale;
+  S.rollDir = ax === 0 ? (Math.random() < .5 ? -1 : 1) : Math.sign(ax);
   S.yo.x = S.hand.x + S.rollDir * 4; S.yo.y = S.hand.y + S.Lmin;
-  S.yo.vx = clamp(side, -900, 900) / Math.sqrt(Math.max(.7, S.cfg.mass));
-  S.yo.vy = (400 + power * 560) * S.scale;
-  S.events.push({ type: "throw", power, spins: count });
+  const nx = ax / mag, ny = Math.max(0.45, ay / mag);
+  const mass = Math.sqrt(Math.max(.7, S.cfg.mass));
+  S.yo.vx = clamp(nx * speed * 0.72, -640 * S.scale, 640 * S.scale) / mass;
+  S.yo.vy = ny * speed;
+  S.events.push({ type: "throw", power, spins: count, aimX: ax, aimY: ay });
   floater(S, count + " spins");
   if (!S.reduced) S.shake = Math.max(S.shake, 2 + power * 3);
 }
@@ -2558,6 +2847,7 @@ const cam = { x: 0, y: 0, z: 1, vx: 0, vy: 0, vz: 0, wideHold: 0, mode: "neutral
 function camTarget(dt) {
   const A = { x: P.Ax, y: P.Acy };
   if (!playing) { cam.mode = "neutral"; return { x: A.x, y: A.y, z: 1 }; }
+  if (store.d.carnival) { cam.mode = "booth"; return { x: A.x, y: A.y, z: 1, mode: "booth" }; }
   const yq = proj(S.yo.x, S.yo.y), hq = proj(S.hand.x, S.hand.y), red = S.reduced ? .3 : 1;
   let x = A.x, y = A.y, z = 1, mode = S.phase;
   const floorTrick = S.onFloor || (S.phase === "sleep" && S.hand.y > S.handBaseY + 30 && S.floorY - (S.yo.y + S.R) < S.R * 1.5);
@@ -2713,8 +3003,8 @@ function render(alpha) {
   const camXf = (c, k) => { c.setTransform(k * pz, 0, 0, k * pz, k * (ox - ox * pz + sx * .5), k * (oy - oy * pz + sy * .5)); c.translate(P.Ax, P.Acy); c.scale(cam.z, cam.z); c.translate(-cam.x, -cam.y); };
   camXf(fg, FR); drawFloor(fg, t, view);
   g.imageSmoothingEnabled = true; g.drawImage(floorBuf, 0, 0, cv.width, cv.height);
+  g.setTransform(DPR, 0, 0, DPR, 0, 0); drawVenue(g, t); drawPlates(g, t);
   camXf(g, DPR); // dynamic camera
-  drawPlates(g, S.time); // carnival plates lie on the floor
   g.translate(sx * .5, sy * .5);
   const hxW = lerp(S.hand.px, S.hand.x, alpha), hyW = lerp(S.hand.py, S.hand.y, alpha), yxW = lerp(S.yo.px, S.yo.x, alpha), yyW = lerp(S.yo.py, S.yo.y, alpha);
   const ang = lerp(S.pAngle, S.angle, alpha), m = modelVis(), hot = S.attract ? .35 : clamp(S.spin / 14, 0, 1);
@@ -2755,6 +3045,97 @@ function render(alpha) {
   // screen-space: dust in the air + lens vignette (not affected by the camera)
   g.setTransform(DPR, 0, 0, DPR, 0, 0); drawLive(g, t); drawVignette(g);
 }
+function aimMark() {
+  const ang = Math.abs(theta(S));
+  const ring = YoSaucers.ringForAngle(ang);
+  const band = YoSaucers.playBand(S.h);
+  const y = band.top + (band.bot - band.top) * [0.03, 0.32, 0.60, 0.88][ring];
+  const worldX = S.hand.x * 0.82 + S.yo.x * 0.18;
+  return { x: clamp(worldX, 18, S.w - 18), y: y, ring: ring };
+}
+function sceneToScreen(x, y) {
+  const pz = 1 + (S.punch || 0), ox = W / 2, oy = H * .45;
+  return {
+    x: ((x - cam.x) * cam.z + P.Ax) * pz + (ox - ox * pz),
+    y: ((y - cam.y) * cam.z + P.Acy) * pz + (oy - oy * pz),
+  };
+}
+function drawVenue(g, t) {
+  if (!playing || S.attract) return;
+  const fish = sessionMode === "fish";
+  const carnival = !!store.d.carnival && sessionMode !== "free";
+  if (!fish && !carnival) return;
+  g.save();
+  if (fish) {
+    const sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, "#07131c"); sky.addColorStop(.35, "#12324a"); sky.addColorStop(.62, "#1c6e86"); sky.addColorStop(1, "#0c3d45");
+    g.fillStyle = sky; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#f4e2a8"; g.beginPath(); g.arc(W * .78, H * .16, Math.min(W, H) * .045, 0, TAU); g.fill();
+    g.fillStyle = "rgba(244,226,168,.18)"; g.beginPath(); g.ellipse(W * .78, H * .16, Math.min(W, H) * .09, Math.min(W, H) * .09, 0, 0, TAU); g.fill();
+    const moon = g.createLinearGradient(W * .7, H * .42, W * .7, H * .95);
+    moon.addColorStop(0, "rgba(180,220,210,0)"); moon.addColorStop(.35, "rgba(210,235,220,.18)"); moon.addColorStop(1, "rgba(8,30,28,.2)");
+    g.fillStyle = moon; g.fillRect(0, H * .4, W, H * .6);
+    for (let i = 0; i < 7; i++) {
+      const y = H * (.46 + i * .07);
+      g.strokeStyle = "rgba(255,255,255," + (0.05 + (i % 3) * 0.03) + ")"; g.lineWidth = 1.5;
+      g.beginPath();
+      for (let x = 0; x <= W; x += 16) g.lineTo(x, y + Math.sin(x * 0.02 + t * 1.4 + i) * 3);
+      g.stroke();
+    }
+    g.fillStyle = "#0e3a2c";
+    g.beginPath(); g.moveTo(0, H * .42); g.quadraticCurveTo(W * .18, H * .34, W * .28, H * .48); g.lineTo(0, H * .62); g.fill();
+    g.beginPath(); g.moveTo(W, H * .4); g.quadraticCurveTo(W * .78, H * .3, W * .7, H * .5); g.lineTo(W, H * .66); g.fill();
+    g.strokeStyle = "#143c28"; g.lineWidth = 3;
+    for (let i = 0; i < 8; i++) {
+      const x = 18 + i * 14;
+      g.beginPath(); g.moveTo(x, H * .5); g.quadraticCurveTo(x + 8, H * .36, x + 2, H * .28); g.stroke();
+    }
+    g.fillStyle = "#1d6b4a";
+    for (let i = 0; i < 5; i++) {
+      const x = W * (0.18 + i * 0.15), y = H * (0.55 + (i % 2) * 0.08);
+      g.beginPath(); g.ellipse(x, y, 28, 12, 0.2, 0, TAU); g.fill();
+      g.fillStyle = "#e7f6c8"; g.beginPath(); g.ellipse(x - 6, y - 2, 8, 5, -0.4, 0, TAU); g.fill(); g.fillStyle = "#1d6b4a";
+    }
+  } else {
+    const sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, "#140818"); sky.addColorStop(.28, "#3a1248"); sky.addColorStop(.55, "#1a2748"); sky.addColorStop(1, "#120c09");
+    g.fillStyle = sky; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#f6e2a4"; g.beginPath(); g.arc(W * .82, H * .12, Math.min(36, W * .05), 0, TAU); g.fill();
+    for (let i = 0; i < 18; i++) {
+      const x = (i * 97 + 20) % W, y = (i * 53) % (H * .4);
+      g.globalAlpha = 0.35 + (i % 4) * 0.12; g.fillStyle = "#fff"; g.fillRect(x, y, 2, 2);
+    }
+    g.globalAlpha = 1;
+    const deck = g.createLinearGradient(0, H * .72, 0, H);
+    deck.addColorStop(0, "#3a2416"); deck.addColorStop(1, "#1a0e08");
+    g.fillStyle = deck; g.fillRect(0, H * .72, W, H * .28);
+    g.strokeStyle = "rgba(90,50,24,.65)"; g.lineWidth = 2;
+    for (let x = 0; x < W; x += 28) { g.beginPath(); g.moveTo(x, H * .72); g.lineTo(x + 10, H); g.stroke(); }
+    const booths = [["#c23b4a", .08], ["#e2b14a", .28], ["#3e7d4f", .5], ["#3a6ea5", .7], ["#8a3e8a", .88]];
+    for (const b of booths) {
+      const x = W * b[1];
+      g.fillStyle = b[0]; g.fillRect(x, H * .58, W * .12, H * .16);
+      g.fillStyle = "#f4e2b0"; g.fillRect(x + 6, H * .62, W * .05, H * .05);
+      g.fillStyle = "#2a140c"; g.beginPath(); g.moveTo(x - 6, H * .58); g.lineTo(x + W * .06, H * .5); g.lineTo(x + W * .14, H * .58); g.fill();
+    }
+    g.strokeStyle = "#f2c14e"; g.lineWidth = 2;
+    g.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      const x = (W / 16) * i;
+      const y = H * .2 + Math.sin(i * 0.7) * 10;
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.stroke();
+    for (let i = 0; i <= 16; i++) {
+      const x = (W / 16) * i, y = H * .2 + Math.sin(i * 0.7) * 10;
+      const glow = g.createRadialGradient(x, y, 0, x, y, 10);
+      glow.addColorStop(0, i % 2 ? "rgba(255,220,120,.95)" : "rgba(255,120,90,.9)");
+      glow.addColorStop(1, "rgba(255,180,60,0)");
+      g.fillStyle = glow; g.beginPath(); g.arc(x, y, 10, 0, TAU); g.fill();
+    }
+  }
+  g.restore();
+}
 /* ================= Carnival mode: smash the plates =================
    Carnival targets lie on the floor (seen from above, like everything else). The yo-yo smashes a plate when
    it is low (a full-length sleeper, the bottom of a swing, or rolling on the floor in Walk the Dog) and its
@@ -2762,7 +3143,7 @@ function render(alpha) {
    gold plates are a rare bonus, some plates slide; chained smashes build a multiplier. */
 const carn = { plates: [], shards: [], bursts: [], t: 0, chain: 0, lastHit: -9, hits: 0, id: 0, forLevel: 0, queue: [], bossActive: 0 };
 function carnOn() { return !!store.d.carnival && playing && !S.attract; }
-function carnReset() { carn.plates.length = 0; carn.shards.length = 0; carn.bursts.length = 0; carn.queue.length = 0; carn.chain = 0; carn.lastHit = -9; carn.forLevel = 0; carn.hits = 0; carn.bossActive = 0; carn.bossCarry = null; }
+function carnReset() { carn.plates.length = 0; carn.shards.length = 0; carn.bursts.length = 0; carn.queue.length = 0; carn.chain = 0; carn.lastHit = -9; carn.forLevel = 0; carn.hits = 0; carn.bossActive = 0; carn.bossCarry = null; carn.bossLeft = null; carn.fishLeft = null; carn.hooked = 0; carn.gateOn = 0; carn.lineHits = []; carn.lineAwarded = false; }
 function lanesFor(n) { return n <= 2 ? [-.36, .36] : n === 3 ? [-.5, 0, .5] : [-.66, -.22, .22, .66]; }
 function makePlate(spec, lane, i, n) {
   const gold = spec.lv >= 5 && i === n - 1;
@@ -2773,16 +3154,29 @@ function gridLayout(spec) {
   const cols = YoSaucers.columnCenters(S.w, radius);
   return { centers: cols.centers, left: cols.left, right: cols.right, cellW: cols.cellW, handBaseY: S.handBaseY, Lmax: S.Lmax, radius: radius };
 }
+function goldChance() {
+  const lv = store.d.level | 0;
+  if (lv < 8) return 0;
+  const tier = Math.min(5, (store.d.upgrades && store.d.upgrades.gold) || 0);
+  return 0.08 + tier * 0.02;
+}
 function makeGridPlate(spec, row, col, slot) {
-  const bossSlot = row === 0 && col === 1;
-  const gold = bossSlot && spec.lv >= 5;
-  return { id: ++carn.id, grid: true, row: row, col: col, slot: slot, phase: slot * .85, motion: YoSaucers.motionFor(row, col), kind: gold ? "gold" : "mid", r: YoSaucers.plateRadius(S.w, spec.radius), pts: platePoints(spec, gold), lane: col - 1, u0: S.w / 2, u: S.w / 2, v: S.handBaseY, worldY: S.handBaseY, rot: slot * .4, born: carn.t, life: 1e9, moving: true, amp: 20, w: 1, ph: slot, armed: true, hp: 1, maxHp: 1 };
+  const gold = Math.random() < goldChance();
+  return { id: ++carn.id, grid: true, row: row, col: col, slot: slot, phase: slot * .85, motion: YoSaucers.motionFor(row, col), kind: gold ? "gold" : "mid", r: YoSaucers.screenRadius(S.w, S.h), pts: platePoints(spec, gold), lane: col - 1, u0: S.w / 2, u: S.w / 2, v: S.handBaseY, worldY: S.handBaseY, rot: slot * .4, born: carn.t, life: 1e9, moving: true, amp: 20, w: 1, ph: slot, armed: true, hp: 1, maxHp: 1, hitThrow: -1 };
 }
 function posePlate(p, spec) {
   if (p.grid) {
-    const lay = gridLayout(spec);
-    const posed = YoSaucers.pose(p, carn.t, spec.lv, lay);
-    p.u = posed.u; p.worldY = posed.worldY; p.rowFrac = posed.frac; p.v = posed.worldY; p.moving = true; p.r = lay.radius; p.w = posed.speed; p.ph = p.phase;
+    if (p.boss) {
+      const band = YoSaucers.playBand(S.h);
+      p.sy = (band.top + band.bot) * 0.42;
+      p.sx = S.w * 0.5 + Math.sin(carn.t * (p.w || 1) * 1.3) * S.w * 0.2;
+      p.sr = Math.max(30, YoSaucers.screenRadius(S.w, S.h) + 8);
+      p.r = p.sr; p.u = p.sx; p.worldY = p.sy; p.v = p.sy; p.moving = true;
+      return;
+    }
+    const scr = YoSaucers.screenSlot(p.row, p.col, S.w, S.h, carn.t, spec.lv, p.phase);
+    p.sx = scr.x; p.sy = scr.y; p.sr = scr.r; p.r = scr.r; p.w = YoSaucers.speedFor(spec.lv, p.slot || 0);
+    p.u = scr.x; p.worldY = scr.y; p.v = scr.y; p.moving = true; p.ph = p.phase;
     return;
   }
   const n = Math.max(1, spec.alive);
@@ -2815,11 +3209,12 @@ function carnUpdate(dt) {
   for (const b of carn.bursts) b.life -= dt; for (let i = carn.bursts.length - 1; i >= 0; i--) if (carn.bursts[i].life <= 0) carn.bursts.splice(i, 1);
   if (!carnOn()) { carn.plates.length = 0; carn.queue.length = 0; carn.forLevel = 0; return; }
   const spec = stageSpec(store.d.level);
-  const gridN = YoSaucers.cells().length;
-  if (carn.forLevel !== spec.lv || carn.plates.length + carn.queue.length !== gridN) {
+  const gate = store.d.bossGate | 0;
+  const gridN = gate ? 1 : YoSaucers.openCells(spec.lv).length;
+  if (carn.forLevel !== spec.lv || carn.gateOn !== gate || carn.plates.length + carn.queue.length !== gridN) {
     carn.bossCarry = (function () { const pl = carn.plates.find((q) => q.boss && q.hp > 0); return pl ? { level: pl.bossLevel | 0, hp: pl.hp, maxHp: pl.maxHp } : null; })();
-    carn.plates.length = 0; carn.queue.length = 0; carn.forLevel = spec.lv; carn.chain = 0; carn.bossActive = 0;
-    YoSaucers.cells().forEach((c) => carn.plates.push(makeGridPlate(spec, c.row, c.col, c.slot)));
+    carn.plates.length = 0; carn.queue.length = 0; carn.forLevel = spec.lv; carn.gateOn = gate; carn.chain = 0; carn.bossActive = 0;
+    if (!gate) YoSaucers.openCells(spec.lv).forEach((c) => carn.plates.push(makeGridPlate(spec, c.row, c.col, c.slot)));
   }
   for (const p of carn.plates) posePlate(p, spec);
   for (let i = carn.queue.length - 1; i >= 0; i--) {
@@ -2829,57 +3224,97 @@ function carnUpdate(dt) {
     carn.queue.splice(i, 1);
   }
   ensureBoss(spec);
+  if (carn.bossActive && carn.bossLeft != null) {
+    carn.bossLeft -= dt;
+    if (carn.bossLeft <= 0) {
+      carn.bossLeft = null; carn.bossActive = 0;
+      carn.plates = carn.plates.filter((q) => !q.boss);
+      S.events.push({ type: "bossFail" });
+    }
+  }
+  if (sessionMode === "fish" && carn.fishLeft != null) {
+    carn.fishLeft -= dt;
+    if (carn.fishLeft <= 0) { carn.fishLeft = 0; S.events.push({ type: "fishEnd" }); carn.fishLeft = null; }
+  }
   if (carn.chain && carn.t - carn.lastHit > 3.2) carn.chain = 0;
-  if (S.phase === "held" || S.phase === "dead") return;
+  const sleeping = S.phase === "sleep" && S.spin >= 1 && !S.tangled;
+  if (!sleeping || S.phase === "held" || S.phase === "dead") return;
+  if (sessionMode === "fish" && (carn.hooked || 0) >= 3) return;
+  const ang = Math.abs(theta(S));
+  const ring = YoSaucers.ringForAngle(ang);
+  const qYo = aimMark();
   for (let i = carn.plates.length - 1; i >= 0; i--) {
     const p = carn.plates[i];
     if (carn.t - p.born < .35) continue;
-    const reach = YoSaucers.hitReach(S.Lmax, p.r, S.R);
-    const y = p.worldY != null ? p.worldY : S.handBaseY + S.Lmax * .9;
-    const dist = Math.abs(p.u - S.yo.x);
-    const overlapping = dist < reach.horizontal && Math.abs(y - S.yo.y) < reach.vertical;
-    if (p.boss) {
-      if (!overlapping) { p.armed = true; continue; }
-      if (!p.armed) continue;
-      p.armed = false;
-      const grade = YoProgress.gradeHit(dist, p.r);
-      if (p.hp > 1) {
-        p.hp -= 1;
-        S.events.push({ type: "bossChip", grade, hp: p.hp, maxHp: p.maxHp, name: p.bossName });
-        burst(S, S.yo.x, S.yo.y, S.reduced ? 3 : (grade === "perfect" ? 16 : 8), "spark");
-        if (!S.reduced) S.shake = Math.max(S.shake, grade === "perfect" ? 8 : 4);
-        continue;
-      }
-    } else if (!overlapping) continue;
-    p.pts = YoScore.saucerBase({ row: p.row | 0, speed: p.w || YoSaucers.speedFor(spec.lv, p.slot || 0), reachFrac: p.rowFrac || YoSaucers.ROW_FRAC[p.row | 0] || 0.5, level: spec.lv, grade: YoProgress.gradeHit(dist, p.r), gold: p.kind === "gold" || !!p.boss });
+    if (p.hitThrow === S.throws) continue;
+    if (!p.boss && (p.row | 0) !== qYo.ring) continue;
+    const dx = Math.abs(qYo.x - (p.sx != null ? p.sx : p.u));
+    const slop = YoSaucers.hitSlop(S.w, p.sr || p.r || 22);
+    if (dx > slop) continue;
+    const grade = YoProgress.gradeReach(dx, slop);
+    p._grade = grade;
+    if (p.boss && !bossAccepts(p, ang, grade)) {
+      p.hitThrow = S.throws;
+      S.events.push({ type: "bossNo", name: p.bossName });
+      continue;
+    }
+    p.hitThrow = S.throws;
+    if (p.boss && p.hp > 1) {
+      p.hp -= 1;
+      S.events.push({ type: "bossChip", grade, hp: p.hp, maxHp: p.maxHp, name: p.bossName });
+      burst(S, S.yo.x, S.yo.y, S.reduced ? 3 : (grade === "perfect" ? 16 : 8), "spark");
+      if (!S.reduced) { S.shake = Math.max(S.shake, grade === "perfect" ? 8 : 4); S.hitStop = Math.max(S.hitStop || 0, grade === "perfect" ? .06 : grade === "great" ? .03 : 0); }
+      continue;
+    }
+    p.pts = YoScore.saucerBase({ row: p.boss ? ring : (p.row | 0), level: spec.lv, grade: grade, gold: p.kind === "gold" || !!p.boss, tricks: S.scored ? S.scored.size : 0 });
+    p._xp = p.boss ? 0 : YoScore.hitXP({ row: p.row | 0, grade: grade });
+    p._coins = p.boss ? 0 : YoScore.coinsForHit(spec.lv, p.kind === "gold");
     smashPlate(i);
   }
 }
+function bossAccepts(p, ang, grade) {
+  const name = p.bossName || "";
+  if (name === "Strongman") return ang >= 0.82;
+  if (name === "Fire Dancer") return grade === "perfect";
+  if (name === "High Wire") return ang >= 0.82;
+  if (name === "Cannonball") return (p.w || 0) >= 0.9;
+  return true;
+}
 function ensureBoss(spec) {
   const carry = carn.bossCarry; carn.bossCarry = null;
-  if (!carnOn() || !store.d.pendingBosses || !store.d.pendingBosses.length) return;
-  const level = store.d.pendingBosses[0] | 0;
+  const level = store.d.bossGate | 0;
+  if (!carnOn() || !level) return;
   if (carn.bossActive === level) return;
-  const p = carn.plates[carn.plates.length - 1];
-  if (!p || p.boss) return;
   const b = YoProgress.bossFor(level);
   if (!b) return;
   const kept = carry && carry.level === level ? YoProgress.continueBoss(b.hp, carry) : null;
   const resumed = !!(kept && kept.resumed);
-  p.boss = true; p.kind = "gold"; p.hp = resumed ? kept.hp : b.hp; p.maxHp = resumed ? kept.maxHp : b.hp; p.bossName = b.name; p.bossLevel = level; p.armed = true;
+  const p = makeGridPlate(spec, 0, 1, 99);
+  p.boss = true; p.kind = "gold"; p.hp = resumed ? kept.hp : b.hp; p.maxHp = resumed ? kept.maxHp : b.hp;
+  p.bossName = b.name; p.bossLevel = level; p.armed = true; p.row = 0; p.col = 1;
+  p.w = b.name === "Cannonball" ? 1.4 : YoSaucers.speedFor(level, 1);
   p.pts = platePoints(spec, true);
+  carn.plates.push(p);
   carn.bossActive = level;
+  if (carn.bossLeft == null) carn.bossLeft = 45;
   if (!resumed) S.events.push({ type: "bossIn", name: b.name, hp: p.hp, level });
 }
 function smashPlate(i) {
   const p = carn.plates[i]; carn.plates.splice(i, 1);
-  carn.queue.push({ row: p.row, col: p.col, slot: p.slot, at: carn.t + .6 });
+  if (!p.boss) carn.queue.push({ row: p.row, col: p.col, slot: p.slot, at: carn.t + .6 });
   carn.chain = carn.t - carn.lastHit < 3.2 ? carn.chain + 1 : 1; carn.lastHit = carn.t; carn.hits++;
-  const mult = Math.min(3, 1 + (carn.chain - 1) * .5), pts = Math.round(p.pts * mult);
+  const mult = YoScore.chainMult(carn.chain, (store.d && store.d.level) || 1), pts = Math.round(p.pts * mult);
   S.score += pts; bumpBest(S);
-  const grade = YoProgress.gradeHit(Math.abs(p.u - S.yo.x), p.r);
-  if (p.boss) { YoProgress.defeatBoss(store.d, p.bossLevel); carn.bossActive = 0; }
-  S.events.push({ type: "plate", kind: p.boss ? "boss" : p.kind, points: pts, chain: carn.chain, mult, grade, bossName: p.bossName || "" });
+  const grade = p._grade || "good";
+  if (p.boss) {
+    YoProgress.grantBossWin(store.d, p.bossLevel);
+    carn.bossActive = 0; carn.bossLeft = null; carn.gateOn = 0;
+    S.events.push({ type: "bossWin", name: p.bossName, level: p.bossLevel, points: pts });
+  }
+  carn.hitsThisThrow = (carn.hitsThisThrow || 0) + 1;
+  if (sessionMode === "fish") carn.hooked = (carn.hooked || 0) + 1;
+  S.events.push({ type: "plate", kind: p.boss ? "boss" : (sessionMode === "fish" ? "fish" : p.kind), points: pts, chain: carn.chain, mult, grade, bossName: p.bossName || "", xp: p._xp || 0, coins: p._coins || 0, row: p.row | 0 });
+  if (!p.boss) noteLine(p);
   floater(S, (p.kind === "gold" ? "GOLD +" : "+") + pts + (carn.chain > 1 ? "  ×" + (mult % 1 ? mult.toFixed(1) : mult) : ""));
   burst(S, S.yo.x, S.yo.y, S.reduced ? 4 : (grade === "perfect" ? 20 : grade === "great" ? 12 : 6), "spark");
   const cols = plateCols(p.kind), n = S.reduced ? 8 : 18;
@@ -2888,6 +3323,25 @@ function smashPlate(i) {
       life: .9 + Math.random() * .7, max: 1.6, size: p.r * (.22 + Math.random() * .26), col: cols[(Math.random() * cols.length) | 0] }); }
   carn.bursts.push({ u: p.u, v: p.v, worldY: p.worldY, r: p.r, life: .55, max: .55, gold: p.kind === "gold" });
   if (!S.reduced) { S.shake = Math.max(S.shake, p.kind === "gold" ? 10 : 6); S.punch = Math.max(S.punch, .03); }
+}
+function noteLine(p) {
+  carn.lineHits = carn.lineHits || [];
+  carn.lineHits.push({ row: p.row | 0, col: p.col | 0 });
+  if (carn.lineAwarded) return;
+  const byRow = {}, byCol = {};
+  for (const h of carn.lineHits) {
+    (byRow[h.row] || (byRow[h.row] = new Set())).add(h.col);
+    (byCol[h.col] || (byCol[h.col] = new Set())).add(h.row);
+  }
+  const rowLine = Object.keys(byRow).some((k) => byRow[k].size >= 3);
+  const sector = Object.keys(byCol).some((k) => byCol[k].size >= 3);
+  if (!rowLine && !sector) return;
+  carn.lineAwarded = true;
+  const bonus = YoScore.lineBonus((store.d.level | 0) || 1);
+  S.score += bonus; bumpBest(S);
+  store.d.stats.lines = (store.d.stats.lines || 0) + 1;
+  S.events.push({ type: "line", points: bonus });
+  if (typeof showCallout === "function") showCallout("LINE");
 }
 function plateCols(kind) {
   if (kind === "gold") return ["#ffe27a", "#f5b72e", "#fff6c8", "#c8861a"];
@@ -2900,6 +3354,16 @@ function plateSprite(kind) {
   if (plateFor !== TH.kind) { plateSprites = {}; plateFor = TH.kind; }
   if (plateSprites[kind]) return plateSprites[kind];
   const N = 192, c = document.createElement("canvas"); c.width = c.height = N; const g = c.getContext("2d"); g.translate(N / 2, N / 2); const R = N * .44;
+  if (kind === "fish") {
+    g.fillStyle = "rgba(0,0,0,.28)"; g.beginPath(); g.ellipse(6, 10, R * .9, R * .42, 0, 0, TAU); g.fill();
+    const body = g.createLinearGradient(-R, 0, R, 0); body.addColorStop(0, "#ffb703"); body.addColorStop(.5, "#fb8500"); body.addColorStop(1, "#9b2226");
+    g.fillStyle = body; g.beginPath(); g.ellipse(-6, 0, R * .72, R * .38, 0, 0, TAU); g.fill();
+    g.fillStyle = "#bb3e03"; g.beginPath(); g.moveTo(R * .45, 0); g.lineTo(R * .95, -R * .32); g.lineTo(R * .95, R * .32); g.closePath(); g.fill();
+    g.fillStyle = "#ffe8a3"; g.beginPath(); g.ellipse(-R * .28, -R * .02, R * .16, R * .1, 0, 0, TAU); g.fill();
+    g.fillStyle = "#111"; g.beginPath(); g.arc(-R * .42, -R * .06, R * .07, 0, TAU); g.fill();
+    g.fillStyle = "#fff"; g.beginPath(); g.arc(-R * .44, -R * .08, R * .025, 0, TAU); g.fill();
+    return (plateSprites[kind] = c);
+  }
   const neon = TH.kind === "neon" && kind !== "gold", gold = kind === "gold";
   // cast shadow on the floor (light from up-left)
   g.fillStyle = "rgba(0,0,0,.35)"; g.beginPath(); g.arc(R * .08, R * .1, R * 1.02, 0, TAU); g.fill();
@@ -2921,10 +3385,24 @@ function plateSprite(kind) {
 function drawPlates(g, t) {
   if (!carn.plates.length && !carn.bursts.length) return;
   const sf = P.sf;
-  for (const p of carn.plates.slice().sort((a, b) => (b.worldY || 0) - (a.worldY || 0))) {
+  if (carnOn() && YoSaucers.playBand) {
+    const band = YoSaucers.playBand(S.h);
+    const rows = store.d.bossGate ? 1 : YoSaucers.openRows(store.d.level | 0 || 1);
+    g.save();
+    for (let i = 0; i < rows; i++) {
+      const y = band.top + (band.bot - band.top) * [0.03, 0.32, 0.60, 0.88][i];
+      g.beginPath(); g.ellipse(S.w / 2, y, S.w * 0.42, Math.max(10, (band.bot - band.top) * 0.045), 0, 0, TAU);
+      g.strokeStyle = "rgba(255,214,120," + (0.18 + i * 0.05) + ")"; g.lineWidth = 2; g.stroke();
+    }
+    g.restore();
+  }
+  for (const p of carn.plates.slice().sort((a, b) => (a.sy || 0) - (b.sy || 0))) {
     const age = carn.t - p.born, pop = clamp(age / .35, 0, 1), out = clamp((p.life + .5 - age) / .5, 0, 1), sc = (pop < 1 ? 1 - Math.pow(1 - pop, 3) * 1 + Math.sin(pop * Math.PI) * .12 : 1) * out;
     if (sc <= .01) continue;
-    const q = p.worldY != null ? proj(p.u, p.worldY) : fproj(p.u, p.v), depth = p.worldY != null ? q.s : sf, r = p.r * depth * sc, img = plateSprite(p.kind), size = r / .44;
+    const onScreen = p.sx != null;
+    const q = onScreen ? { x: p.sx, y: p.sy, s: 1 } : (p.worldY != null ? proj(p.u, p.worldY) : fproj(p.u, p.v));
+    const depth = onScreen ? 1 : (p.worldY != null ? q.s : sf);
+    const r = (onScreen ? (p.sr || p.r) : p.r * depth) * sc, img = plateSprite(sessionMode === "fish" ? "fish" : p.kind), size = r / .44;
     g.save(); g.translate(q.x, q.y); g.rotate(p.rot + (p.moving ? Math.sin(t * 3 + p.ph) * .2 : 0)); g.drawImage(img, -size, -size, size * 2, size * 2); g.restore();
     if (p.kind === "gold" && !S.reduced) { g.globalCompositeOperation = "lighter"; for (let k = 0; k < 2; k++) { const a = t * 1.7 + k * 3.1, s2 = Math.max(0, Math.sin(t * 4 + k * 2)); if (s2 > .3) star4(g, q.x + Math.cos(a) * r * .6, q.y + Math.sin(a) * r * .6, r * .35 * s2, .9); } g.globalCompositeOperation = "source-over"; }
     if (p.moving && !p.grid) { g.strokeStyle = rgba(TH.c.line, .3); g.lineWidth = 1.2; g.setLineDash([4, 5]); g.beginPath(); g.moveTo(fproj(p.u0 - p.amp - p.r, p.v).x, q.y); g.lineTo(fproj(p.u0 + p.amp + p.r, p.v).x, q.y); g.stroke(); g.setLineDash([]); }
@@ -2940,6 +3418,14 @@ function drawPlates(g, t) {
     g.globalCompositeOperation = "lighter"; g.globalAlpha = (1 - k) * .9; g.drawImage(glowSprite, q.x - r * 1.4, q.y - r * 1.4, r * 2.8, r * 2.8);
     g.globalAlpha = 1 - k; g.strokeStyle = b.gold ? "#ffe27a" : TH.css.hi; g.lineWidth = 3 * (1 - k) + .5; g.beginPath(); g.arc(q.x, q.y, r, 0, TAU); g.stroke();
     g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; }
+  if (playing && S.phase === "sleep" && store.d.carnival) {
+    const m = aimMark();
+    g.save();
+    g.strokeStyle = "rgba(255,220,120,.9)"; g.lineWidth = 3;
+    g.beginPath(); g.arc(m.x, m.y, 16, 0, TAU); g.stroke();
+    g.fillStyle = "rgba(255,210,90,.35)"; g.beginPath(); g.arc(m.x, m.y, 7, 0, TAU); g.fill();
+    g.restore();
+  }
 }
 function drawShards(g) {
   if (!carn.shards.length) return;
@@ -2984,14 +3470,22 @@ function endDrag(e) {
   const ty = e.clientY - d.sy, tx = e.clientX - d.sx, quick = dur < 500 && Math.abs(ty) > 60;
   const down = (vy > 450 || (quick && ty > 0)) && Math.abs(ty) > Math.abs(tx) * .6, up = (vy < -450 || (quick && ty < 0)) && Math.abs(ty) > Math.abs(tx) * .6;
   // first-person: swipe UP (away from you) throws, pull DOWN (back toward you) binds
-  if (up && S.phase === "held") requestThrow(clamp(Math.max(-vy, -ty / Math.max(.08, dur / 1000)) / 2400, .45, 1), clamp(vx, -1500, 1500) * .35);
+  if (up && S.phase === "held" && !turnLocked()) {
+    S.pendingAimX = vx;
+    S.pendingAimY = Math.max(320, -vy);
+    requestThrow(clamp(Math.max(-vy, -ty / Math.max(.08, dur / 1000)) / 2400, .45, 1), clamp(vx, -1500, 1500) * .35);
+  }
   else if (down && S.phase !== "held") queueTug(S);
 }
 cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
 cv.addEventListener("contextmenu", (e) => e.preventDefault());
+function aimFromHand() {
+  S.pendingAimX = (S.hand.x - S.w / 2) * 3.1 + ((inp.keys && (inp.keys.has("ArrowLeft") || inp.keys.has("KeyA"))) ? -900 : (inp.keys && (inp.keys.has("ArrowRight") || inp.keys.has("KeyD"))) ? 900 : 0);
+  S.pendingAimY = 1000;
+}
 function primary() {
-  if (!playing) return; sfx.unlock();
-  if (S.phase === "held") requestThrow(.9); else queueTug(S);
+  if (!playing || turnLocked()) return; sfx.unlock();
+  if (S.phase === "held") { aimFromHand(); requestThrow(.9); } else queueTug(S);
 }
 addEventListener("keydown", (e) => {
   if (!playing) { if (!$("menu").classList.contains("hidden") && !sheetOpen) { if (e.code === "ArrowLeft") pick(-1); if (e.code === "ArrowRight") pick(1); if (e.code === "Enter" && document.activeElement === document.body) $("play").click(); } if (e.code === "Escape") closeSheets(); return; }
@@ -3000,7 +3494,7 @@ addEventListener("keydown", (e) => {
   if (e.repeat) return;
   inp.keys.add(e.code);
   if (e.code === "Space" || e.code === "Enter") primary();
-  else if ((e.code === "ArrowUp" || e.code === "KeyW") && S.phase === "held") requestThrow(.9);      // push away = throw
+  else if ((e.code === "ArrowUp" || e.code === "KeyW") && S.phase === "held" && !turnLocked()) { aimFromHand(); requestThrow(.9); }      // push away = throw
   else if ((e.code === "ArrowDown" || e.code === "KeyS") && S.phase !== "held") queueTug(S);         // pull back = bind
 });
 addEventListener("keyup", (e) => inp.keys.delete(e.code));
@@ -3036,7 +3530,13 @@ function onMotion(e) {
   if (tilt.peak > 1 && score < .6) {
     const p = tilt.peak, pitch = tilt.pitch || 0; tilt.peak = 0; tilt.pitch = 0; tilt.cool = now + 520;
     // pitch < 0: top of the phone flicked forward/down (away from you) -> throw; pitch > 0: pulled back toward you -> bind
-    if (S.phase === "held") { if (pitch < 150) requestThrow(clamp(.35 + p * .3, .45, 1), 0, clamp(tilt.side / 600, -1, 1), false); } // real wrist already wound up
+    if (S.phase === "held" && !turnLocked()) {
+      if (pitch < 150) {
+        S.pendingAimX = (tilt.side || 0) * 1.6 + (tilt.fx || 0) * 36;
+        S.pendingAimY = 900 + Math.max(0, -pitch);
+        requestThrow(clamp(.35 + p * .3, .45, 1), 0, clamp(tilt.side / 600, -1, 1), false);
+      }
+    } // real wrist already wound up
     else if (pitch > -150 && (S.phase !== "out" || S.L > S.Lmax * .3)) queueTug(S);
   }
 }
@@ -3175,8 +3675,13 @@ function renderProgress(bumpLvl) {
 }
 function gainXP(pts) {
   const d = store.d;
-  const reached = YoProgress.addXp(d, typeof pts === "number" ? pts : 0);
+  const reached = YoProgress.addXp(d, typeof pts === "number" ? pts : 0, { gate: true });
   const up = reached.length > 0;
+  if (d.bossGate && last.bossNote !== d.bossGate) {
+    last.bossNote = d.bossGate;
+    carn.bossLeft = 45; carn.gateOn = 0;
+    setTimeout(() => toast("Boss gate", levelLine(d.level), false, true), 280);
+  }
   if (up) {
     const line = levelLine(d.level);
     const chest = reached.some((lv) => lv % 5 === 0);
@@ -3188,7 +3693,7 @@ function gainXP(pts) {
   store.save();
 }
 function gainCoins(n) { store.d.coins += n; el.coinsHud.classList.remove("bump"); void el.coinsHud.offsetWidth; el.coinsHud.classList.add("bump"); sfx.coin(); renderProgress(false); }
-const last = { score: -1, combo: -1, phase: "", hint: "", spin: -1, cap: -1, scored: "", best: -1, action: "" };
+const last = { score: -1, combo: -1, phase: "", hint: "", spin: -1, cap: -1, scored: "", best: -1, action: "", bossNote: 0 };
 function updateHud() {
   if (S.score !== last.score) { el.score.textContent = S.score.toLocaleString(); if (S.score > last.score && last.score >= 0) { el.score.classList.remove("bump"); void el.score.offsetWidth; el.score.classList.add("bump"); } last.score = S.score; }
   if (S.combo !== last.combo) { const m = 1 + Math.max(0, S.combo - 1) * .5; el.combo.textContent = "×" + (m % 1 ? m.toFixed(1) : m); el.combo.classList.toggle("on", S.combo >= 2); el.combo.classList.toggle("hot", S.combo >= 4); last.combo = S.combo; }
@@ -3215,6 +3720,16 @@ function updateHud() {
     bar.hidden = !boss;
     if (boss) { $("bossName").textContent = boss.bossName || "Boss"; $("bossHp").style.width = (100 * boss.hp / (boss.maxHp || 1)).toFixed(1) + "%"; }
   }
+  const pill = $("stringPill");
+  if (pill) { pill.hidden = !playing; pill.textContent = "Strings " + (S.stringsLeft == null ? YoProgress.stringCount(store.d) : S.stringsLeft); }
+  const rb = $("ringBanner");
+  if (rb) {
+    rb.hidden = !playing;
+    let line = levelLine(store.d.level);
+    if (sessionMode === "fish" && carn.fishLeft != null) line += " · " + Math.max(0, Math.ceil(carn.fishLeft)) + "s";
+    else if (store.d.bossGate && carn.bossLeft != null) line += " · " + Math.max(0, Math.ceil(carn.bossLeft)) + "s";
+    rb.textContent = line;
+  }
   const look = store.d.cosmetic && YoProgress.cosmetic(store.d.cosmetic);
   const tag = $("lookTag");
   if (tag) { tag.hidden = !look; if (look) tag.textContent = look.name; }
@@ -3225,11 +3740,26 @@ function handleEvents() {
   for (const e of S.events) {
     rigEvent(e);
     switch (e.type) {
-      case "throw": sfx.throw(); buzz(e.power > .6 ? 14 : 9); store.d.stats.throws = (store.d.stats.throws || 0) + 1; break;
+      case "throw": sfx.throw(); buzz(e.power > .6 ? 14 : 9); store.d.stats.throws = (store.d.stats.throws || 0) + 1;
+        carn.lineHits = []; carn.lineAwarded = false; carn.hitsThisThrow = 0; S.handAtThrow = S.hand.x;
+        if (duel.on) { duel.scoreAt = S.score; duel.tricksAt = new Set(S.scored); }
+        break;
       case "tug": sfx.tug(); buzz(10); break;
       case "sleep": sfx.sleep(); buzz(8); break;
-      case "die": sfx.die(); buzz([28, 40, 36]); toast("Spin out", e.lost ? "−" + e.lost.toLocaleString() + " points" : "score cleared", true); saveBest(); break;
-      case "catch": sfx.catch(e.clean); buzz(e.clean ? [16, 34, 24] : 12); saveBest(); break;
+      case "die": {
+        sfx.die(); buzz([28, 40, 36]);
+        if (S.stringsLeft == null) S.stringsLeft = YoProgress.stringCount(store.d);
+        S.stringsLeft = Math.max(0, S.stringsLeft - 1);
+        if (S.stringsLeft > 0 && e.lost) { S.score += e.lost; bumpBest(S); toast("String snapped", S.stringsLeft + " left · score held", true); }
+        else { toast("Run over", e.lost ? "−" + e.lost.toLocaleString() + " points" : "score cleared", true); showRunOver(); }
+        saveBest();
+        if (duel.on) duelFinishThrow(true);
+        break;
+      }
+      case "catch": sfx.catch(e.clean); buzz(e.clean ? [16, 34, 24] : 12); saveBest();
+        if (sessionMode === "fish") { carn.hooked = 0; toast("Banked", "hook is clear"); }
+        if (duel.on) duelFinishThrow(false);
+        break;
       case "snap": sfx.snap(e.force); buzz(e.force > .65 ? [12, 28, 16] : 8); break;
       case "hit": sfx.hit(e.force); buzz(e.force < .34 ? 9 : e.force < .68 ? [14, 26, 12] : [24, 20, 28]); break;
       case "tangle": sfx.tangle(); buzz([16, 30, 18]); toast("Tangled", "reel it in", true); break;
@@ -3240,8 +3770,11 @@ function handleEvents() {
         el.toast.classList.add("g-" + (e.grade || "good"));
         sfx.hit(e.grade === "perfect" ? .85 : e.grade === "great" ? .5 : .25); buzz(10); break;
       }
-      case "plate": sfx.smash(e.kind === "gold" || e.kind === "boss", e.chain); buzz(e.kind === "gold" || e.kind === "boss" ? [20, 30, 30] : [14, 20, 10]); gainXP(e.points);
-        if (e.kind === "gold" || e.kind === "boss" || e.chain >= 3) gainCoins(1);
+      case "plate": sfx.smash(e.kind === "gold" || e.kind === "boss", e.chain); buzz(e.kind === "gold" || e.kind === "boss" ? [20, 30, 30] : [14, 20, 10]);
+        gainXP(e.xp || 0);
+        if (e.coins) gainCoins(e.coins);
+        if (!S.reduced && e.grade) S.hitStop = Math.max(S.hitStop || 0, e.grade === "perfect" ? .06 : e.grade === "great" ? .03 : 0);
+        if (store.d.stats.hitsByRing && e.row >= 0 && e.row < 4) store.d.stats.hitsByRing[e.row] = (store.d.stats.hitsByRing[e.row] || 0) + 1;
         if (noteGrade(e.grade)) week = true;
         if (YoProgress.bumpWeekly(store.d, "plates")) week = true;
         store.d.plates = (store.d.plates || 0) + 1;
@@ -3249,10 +3782,21 @@ function handleEvents() {
         if ((carn.chain || 0) > (store.d.stats.bestChain || 0)) store.d.stats.bestChain = carn.chain;
         toast(YoProgress.gradeWord(e.grade), "+" + e.points + (e.chain > 1 ? "  ·  ×" + (e.mult % 1 ? e.mult.toFixed(1) : e.mult) : "") + (e.bossName ? "  ·  " + e.bossName : ""), false, e.grade === "perfect" || e.kind === "boss");
         el.toast.classList.add("g-" + (e.grade || "good"));
-        if (e.mult === 2 || e.mult === 3) showCallout("×" + e.mult);
+        if (e.mult === 2 || e.mult === 2.5 || e.mult === 3) showCallout("×" + e.mult);
         break;
-      case "flat": toast(e.label, "+" + e.points); gainXP(e.points); gainCoins(1); store.save(); break;
+      case "line": toast("LINE", "+" + e.points, false, true); gainCoins(5); showCallout("LINE"); break;
+      case "bossWin": toast("Boss down", (e.name || "Boss") + " · level " + e.level, false, true); gainXP(100 * ((e.level | 0) / 5)); sfx.fanfare(); break;
+      case "bossFail": toast("Time", "The boss stays. Your XP is safe.", true); break;
+      case "bossNo": toast(e.name || "Boss", "That hit didn't count", true); break;
+      case "fishEnd": finishFish(); break;
+      case "flat": toast(e.label, "+" + e.points); gainXP(YoScore.trickXP(e.points)); store.save(); break;
       case "trick": {
+        const specT = TRICKS.find((t) => t.id === e.id);
+        if (specT) {
+          const scaled = YoScore.trickScore(specT.base, store.d.level | 0 || 1, e.combo);
+          const delta = scaled - e.points;
+          if (delta) { S.score += delta; bumpBest(S); e.points = scaled; }
+        }
         const big = e.id === "bind" || e.id === "around" || e.combo >= 3;
         sfx.trick(); buzz(big ? [18, 40, 28] : [12, 30, 14]);
         toast(e.label, `+${e.points}${e.combo > 1 ? "  ·  ×" + (1 + (e.combo - 1) * .5) : ""}`, false, big);
@@ -3260,7 +3804,18 @@ function handleEvents() {
         const before = new Set(YOYOS.filter((y) => unlocked(y.id)).map((y) => y.id));
         store.d.tricks[e.id] = (store.d.tricks[e.id] || 0) + 1; store.d.best = Math.max(store.d.best, S.best);
         if (YoProgress.bumpWeekly(store.d, e.id)) week = true;
-        gainXP(e.points); gainCoins(Math.max(1, Math.round(e.points / 100))); store.save();
+        const traveled = Math.abs(S.hand.x - (S.handAtThrow == null ? S.hand.x : S.handAtThrow));
+        const walked = e.id === "dog" && traveled < 36;
+        const shaped = e.id !== "sleeper" && e.id !== "bind" && !walked;
+        const aimed = shaped || (carn.hitsThisThrow || 0) > 0 || sessionMode === "free" || !store.d.carnival;
+        if (!aimed) {
+          const token = Math.max(1, Math.round(e.points * 0.05));
+          const cut = e.points - token;
+          if (cut > 0) S.score = Math.max(0, S.score - cut);
+          e.points = token;
+          gainXP(1);
+        } else gainXP(specT ? YoScore.trickXP(specT.base) : 1);
+        store.save();
         const fresh = YOYOS.filter((y) => unlocked(y.id) && !before.has(y.id));
         if (fresh.length) setTimeout(() => { note(`${fresh.map((y) => y.name).join(" & ")} unlocked!`); buzz([10, 40, 10, 40, 20]); }, 900);
         break;
@@ -3329,9 +3884,14 @@ function startGame() {
   applyYoyo(S, store.d.selected); layoutSim(S, W, H, insets);
   playing = true; inp.x = W / 2; inp.y = S.handBaseY; inp.touching = false; drag = null;
   startRun(S); S.hand.x = W / 2; rigReset();
+  S.stringsLeft = YoProgress.stringCount(store.d); S.stringsMax = S.stringsLeft;
+  store.d.stats.runs = (store.d.stats.runs || 0) + 1;
+  duel.on = sessionMode === "duel";
+  if (duel.on) beginDuel(); else { const b = $("duelBanner"); if (b) b.hidden = true; }
+  if (sessionMode === "fish") { carn.fishLeft = 90; carn.hooked = 0; }
   app.classList.add("playing"); $("menu").classList.add("hidden");
   for (const k in last) last[k] = typeof last[k] === "number" ? -1 : "";
-  updateMode(); updateHud();
+  updateMode(); renderProgress(false); updateHud();
   infoFirstRun();
 }
 function toMenu() { infoClose();
@@ -3363,10 +3923,115 @@ function syncSettings() {
 $("swSound").onclick = () => { store.d.sound = !store.d.sound; store.save(); sfx.unlock(); sfx.setMuted(!store.d.sound); syncSettings(); updateSound(); };
 $("swHaptic").onclick = () => { store.d.haptics = !store.d.haptics; store.save(); syncSettings(); buzz(12); };
 $("swShake").onclick = () => { store.d.shake = store.d.shake === false; store.save(); syncSettings(); buzz(8); };
-function syncModes() { document.querySelectorAll("#modes button").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.mode === "carnival") === !!store.d.carnival))); }
+function syncModes() { document.querySelectorAll("#modes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === sessionMode))); }
 function setCarnival(on) { store.d.carnival = on; store.save(); if (!on) carnReset(); syncSettings(); buzz(6); sfx.unlock(); sfx.tug(); }
+function setPlayMode(mode) {
+  if (mode === "fish" && (store.d.level | 0) < 6) { note("The lake opens at level 6."); return; }
+  sessionMode = mode || "carnival";
+  store.d.carnival = sessionMode !== "free";
+  store.save();
+  syncModes(); syncSettings(); buzz(6); sfx.unlock();
+}
+function beginDuel() {
+  duel.on = true; duel.locked = true; duel.turn = 0; duel.letters = ["", ""]; duel.mark = null; duel.over = false; duel.setter = 0;
+  showDuel("Player 1 sets a mark", "Land a trick, or set a score with one throw. Pass the phone when the banner comes back.");
+}
+function showDuel(title, body) {
+  const el = $("duelBanner"); if (!el) return;
+  el.hidden = false; duel.locked = true;
+  $("duelTitle").textContent = title; $("duelBody").textContent = body;
+  $("duelLetters").textContent = "P1 " + (duel.letters[0] || "—") + "   P2 " + (duel.letters[1] || "—");
+  const go = $("duelGo"); if (go) go.textContent = duel.over ? "Back to menu" : "Ready";
+}
+function duelFinishThrow(failed) {
+  if (!duel.on || duel.over) return;
+  const gained = Math.max(0, S.score - (duel.scoreAt || 0));
+  const fresh = [];
+  if (S.scored && duel.tricksAt) S.scored.forEach((id) => { if (!duel.tricksAt.has(id)) fresh.push(id); });
+  const setter = duel.setter, matcher = 1 - setter;
+  if (!duel.mark) {
+    if (failed && !fresh.length) { showDuel("Player " + (setter + 1) + " scratched", "That throw did not set a mark. Try again."); return; }
+    if (fresh.length) {
+      const id = fresh[fresh.length - 1];
+      const spec = TRICKS.find((t) => t.id === id);
+      duel.mark = { kind: "trick", id: id, label: spec ? spec.name : id };
+    } else duel.mark = { kind: "score", n: gained, label: gained.toLocaleString() + " points" };
+    showDuel("Player " + (matcher + 1) + " to match", "Mark: " + duel.mark.label);
+    return;
+  }
+  let ok = false;
+  if (!failed && duel.mark.kind === "trick") ok = !!(S.scored && S.scored.has(duel.mark.id));
+  else if (!failed) ok = gained >= duel.mark.n;
+  if (!ok) {
+    const word = "HORSE";
+    if (duel.letters[matcher].length < word.length) duel.letters[matcher] += word[duel.letters[matcher].length];
+    if (duel.letters[matcher].length >= word.length) {
+      duel.over = true;
+      showDuel("Player " + (setter + 1) + " wins", "Player " + (matcher + 1) + " spelled HORSE.");
+      return;
+    }
+    showDuel("Letter · Player " + (matcher + 1), duel.letters[matcher] + "  ·  same mark: " + duel.mark.label);
+    return;
+  }
+  duel.setter = matcher; duel.mark = null;
+  showDuel("Matched", "Player " + (duel.setter + 1) + " sets the next mark.");
+}
+function showRunOver(title, body) {
+  const el = $("runOver"); if (!el) return;
+  $("runTitle").textContent = title || "Run over";
+  $("runBody").textContent = body || ("Score " + (S.best || S.score || 0).toLocaleString());
+  el.hidden = false;
+}
+function finishFish() {
+  const score = S.score | 0;
+  if (score > (store.d.fishBest || 0)) store.d.fishBest = score;
+  store.d.fishCaught = (store.d.fishCaught || 0) + (carn.hits || 0);
+  store.save();
+  showRunOver("Lake closed", "This pass " + score.toLocaleString() + " · best " + (store.d.fishBest || 0).toLocaleString());
+}
+function renderShop() {
+  const box = $("shopList"); if (!box) return;
+  const d = store.d;
+  const open = !!d.shopUnlocked;
+  const tracks = [["bearing", "Bearing", "Spin lasts longer"], ["strings", "Strings", "More spin-outs before the run ends"], ["gold", "Lucky gold", "Gold saucers show up more"]];
+  box.innerHTML = tracks.map(([id, name, blurb]) => {
+    const tier = (d.upgrades && d.upgrades[id]) || 0;
+    const next = tier + 1;
+    const cost = tier >= 5 ? 0 : YoProgress.upgradeCost(next);
+    const need = 5 * next;
+    const locked = !open || tier >= 5 || (d.level | 0) < need;
+    const why = !open ? "Beat a boss" : tier >= 5 ? "Maxed" : (d.level | 0) < need ? "Level " + need : cost + " coins";
+    return `<button type="button" class="shop-row" data-track="${id}" ${locked ? "disabled" : ""}><b>${name}</b><span>Tier ${tier}/5 · ${blurb}</span><i>${why}</i></button>`;
+  }).join("") + YoProgress.COSMETICS.map((c) => {
+    const owned = (d.ownedCosmetics || []).includes(c.id);
+    const cost = YoProgress.LOOK_PRICE[c.rarity] || 150;
+    return `<button type="button" class="shop-row" data-look="${c.id}" ${!open || owned ? "disabled" : ""}><b>${c.name}</b><span>${c.rarity} look</span><i>${owned ? "Owned" : cost + " coins"}</i></button>`;
+  }).join("") + YoProgress.BACKDROPS.filter((b) => b.price).map((b) => {
+    const owned = (d.ownedBackdrops || []).includes(b.id);
+    return `<button type="button" class="shop-row" data-back="${b.id}" ${!open ? "disabled" : ""}><b>${b.name}</b><span>Backdrop</span><i>${owned ? (d.backdrop === b.id ? "Worn" : "Wear") : b.price + " coins"}</i></button>`;
+    }).join("");
+}
+const shopBtnEl = $("shopBtn");
+if (shopBtnEl) shopBtnEl.onclick = () => { renderShop(); openSheet("shopSheet"); };
+const shopListEl = $("shopList");
+if (shopListEl) shopListEl.onclick = (e) => {
+  const row = e.target.closest(".shop-row"); if (!row) return;
+  let res = null;
+  if (row.dataset.track) res = YoProgress.buyUpgrade(store.d, row.dataset.track);
+  else if (row.dataset.look) res = YoProgress.buyLook(store.d, row.dataset.look);
+  else if (row.dataset.back) res = YoProgress.buyBackdrop(store.d, row.dataset.back);
+  if (res && res.ok) { store.save(); renderProgress(false); renderShop(); sfx.coin(); }
+  else note(!store.d.shopUnlocked ? "Beat a boss to open the shop." : "Can't buy that yet.");
+};
+const duelGoEl = $("duelGo");
+if (duelGoEl) duelGoEl.onclick = () => {
+  if (duel.over) { duel.on = false; $("duelBanner").hidden = true; toMenu(); return; }
+  $("duelBanner").hidden = true; duel.locked = false;
+};
+const runOkEl = $("runOk");
+if (runOkEl) runOkEl.onclick = () => { $("runOver").hidden = true; toMenu(); };
 $("swCarn").onclick = () => setCarnival(!store.d.carnival);
-$("modes").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setCarnival(b.dataset.mode === "carnival"); });
+$("modes").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; setPlayMode(b.dataset.mode); });
 $("swTilt").onclick = () => { store.d.tilt = !store.d.tilt; store.save(); if (!store.d.tilt) disableTilt(); syncSettings(); };
 $("resetProg").onclick = () => { if (!confirm("Reset best score, XP, coins, challenge unlocks, collection, and streak? Redeemed codes stay. Nothing here is stored online.")) return; const next = YoProgress.resetProgress(store.d); for (const k of Object.keys(store.d)) delete store.d[k]; Object.assign(store.d, next); YoProgress.ensureWeekly(store.d, new Date()); YoProgress.touchStreak(store.d, new Date()); store.save(); S.best = 0; viewIdx = 0; applyYoyo(S, "pocket"); renderPicker(true); renderProgress(false); last.best = -1; updateHud(); if (window.__yoOpenReveal) {} };
 
@@ -3436,6 +4101,8 @@ function tick(dt) {
   const rewardOn = !!(window.__yoRewardOpen && window.__yoRewardOpen());
   if (!rewardOn) {
     if (playing) {
+      if (S.baseDrag) { const tier = Math.min(5, (store.d.upgrades && store.d.upgrades.bearing) | 0); S.cfg.spinDrag = S.baseDrag * (1 - 0.06 * tier); }
+      if (S.hitStop > 0 && !S.reduced) S.hitStop = Math.max(0, S.hitStop - dt);
       if (inp.keys.size) { const v = 560 * S.scale * dt; if (inp.keys.has("ArrowLeft") || inp.keys.has("KeyA")) inp.x -= v; if (inp.keys.has("ArrowRight") || inp.keys.has("KeyD")) inp.x += v; if (S.phase !== "held" && (inp.keys.has("KeyW") || inp.keys.has("ArrowUp"))) inp.y += v; }
       if (tilt.live && !inp.touching) {
         inp.x = W / 2 + clamp(tilt.fx / 24, -1, 1) * W * .42;
@@ -3444,9 +4111,11 @@ function tick(dt) {
       inp.x = clamp(inp.x, S.R + 10, W - S.R - 10); inp.y = clamp(inp.y, S.handMinY, S.handMaxY);
       store.d.stats.playSeconds = (store.d.stats.playSeconds || 0) + dt;
     }
-    acc += dt; let n = 0;
-    while (acc >= DT && n < 16) { step(S, inp, DT); acc -= DT; n++; }
-    if (n >= 16) acc = 0;
+    if (!(S.hitStop > 0) || S.reduced) {
+      acc += dt; let n = 0;
+      while (acc >= DT && n < 16) { step(S, inp, DT); acc -= DT; n++; }
+      if (n >= 16) acc = 0;
+    }
     emitTrails(dt);
     stepFx(S, dt);
     if (playing) rigUpdate(dt);

@@ -1,0 +1,9 @@
+{
+  "name": "Yo",
+  "short_name": "Yo",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "start_url": "./index.html",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

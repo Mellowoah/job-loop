@@ -518,6 +518,182 @@ body:has(.sheet.on) .note{opacity:0}
 </div>
 <script>
 "use strict";
+/* Carnival saucers: 4 rows (far to near) by 3 columns. Movement and reach only. */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === "object" && module.exports) module.exports = api;
+  else root.YoSaucers = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const ROWS = 4;
+  const COLS = 3;
+  // Top of the screen is far (end of the string). Bottom is near the hand.
+  const ROW_FRAC = [0.90, 0.68, 0.46, 0.24];
+  const ROW_HALF = 0.08;
+  const MOTIONS = ["drift", "patrol", "bob"];
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function oldReachFraction(string) {
+    const s = string > 0 ? string : 1;
+    return clamp(0.8 * s, 0.55, 0.93);
+  }
+  function reachFraction(string) {
+    const s = string > 0 ? string : 1;
+    return clamp(0.92 * s, 0.78, 0.98);
+  }
+
+  function cells() {
+    const out = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) out.push({ row: row, col: col, slot: row * COLS + col });
+    }
+    const boss = out.findIndex((c) => c.row === 0 && c.col === 1);
+    out.push(out.splice(boss, 1)[0]);
+    return out;
+  }
+
+  function speedFor(level, slot) {
+    const lv = Math.max(1, level | 0);
+    const base = 0.62 + Math.min(0.7, (lv - 1) * 0.045);
+    const vary = [0.78, 1, 1.18, 0.9][Math.abs(slot | 0) % 4];
+    return base * vary;
+  }
+
+  function motionFor(row, col) { return MOTIONS[(row * 2 + col) % MOTIONS.length]; }
+
+  function columnCenters(width, radius) {
+    const pad = Math.max(16, radius) + 8;
+    const left = pad;
+    const right = Math.max(left + COLS, width - pad);
+    const cellW = (right - left) / COLS;
+    const centers = [];
+    for (let col = 0; col < COLS; col++) centers.push(left + (col + 0.5) * cellW);
+    return { centers: centers, left: left, right: right, cellW: cellW };
+  }
+
+  function plateRadius(width, specRadius) {
+    const cell = Math.max(48, (Math.max(1, width) - 28) / COLS);
+    const fit = Math.min(18, cell * 0.12);
+    const specR = specRadius > 0 ? specRadius : fit;
+    return Math.max(12, Math.min(specR, fit));
+  }
+
+  function rowWorldY(handBaseY, Lmax, row) {
+    return handBaseY + ROW_FRAC[row] * Lmax;
+  }
+
+  function pose(cell, t, level, layout) {
+    const speed = speedFor(level, cell.slot);
+    const motion = cell.motion || motionFor(cell.row, cell.col);
+    const uAmp = layout.cellW * 0.30;
+    const phase = cell.phase != null ? cell.phase : cell.slot * 0.9;
+    let du = 0;
+    let dFrac = 0;
+    if (motion === "patrol") {
+      const cycle = Math.max(0.9, 2.6 / speed);
+      const ph = ((t * speed + phase) % cycle) / cycle;
+      du = (ph < 0.5 ? ph * 4 - 1 : 3 - ph * 4) * uAmp;
+    } else if (motion === "bob") {
+      du = Math.sin(t * speed * 0.85 + phase) * uAmp * 0.55;
+      dFrac = Math.sin(t * speed * 1.15 + phase) * 0.03;
+    } else {
+      du = Math.sin(t * speed + phase) * uAmp;
+      dFrac = Math.cos(t * speed * 0.65 + phase) * 0.028;
+    }
+    const frac = clamp(ROW_FRAC[cell.row] + dFrac, 0.16, 0.94);
+    const u = clamp(layout.centers[cell.col] + du, layout.left, layout.right);
+    return { u: u, frac: frac, worldY: layout.handBaseY + frac * layout.Lmax, moving: true, speed: speed, motion: motion };
+  }
+
+  function hitReach(Lmax, radius, yoR) {
+    return {
+      vertical: Math.max(12, Lmax * ROW_HALF),
+      horizontal: radius + yoR * 1.36,
+    };
+  }
+
+  function covers(handBaseY, Lmax, Lmin, yoR) {
+    const far = handBaseY + Lmax;
+    const near = handBaseY + Math.max(0, Lmin);
+    const pad = hitReach(Lmax, 0, yoR).vertical;
+    return ROW_FRAC.map(function (frac) {
+      const y = handBaseY + frac * Lmax;
+      return y <= far && y >= near && (y - pad) <= far && (y + pad) >= near;
+    });
+  }
+
+  return {
+    ROWS: ROWS, COLS: COLS, ROW_FRAC: ROW_FRAC, ROW_HALF: ROW_HALF,
+    cells: cells, speedFor: speedFor, motionFor: motionFor, columnCenters: columnCenters,
+    plateRadius: plateRadius, rowWorldY: rowWorldY, pose: pose, hitReach: hitReach, covers: covers,
+    oldReachFraction: oldReachFraction, reachFraction: reachFraction,
+  };
+});
+
+</script>
+<script>
+"use strict";
+/* Saucer points. Chain (max ×3) is applied by the existing smash formula, not here.
+   Trick ×2/×3/×5 stays on trick awards. Grades stack inside a cap so a perfect
+   far gold saucer cannot run away from a normal hit at the same level. */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === "object" && module.exports) module.exports = api;
+  else root.YoScore = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const BASE = 96;
+  const ROW_PAY = [1.42, 1.22, 1.08, 1];
+  const GRADE_PAY = { perfect: 1.2, great: 1.1, good: 1 };
+  const GOLD_PAY = 1.35;
+  const SHAPE_CAP = 2.5;
+  const CHAIN_CAP = 3;
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function levelPay(level) {
+    const lv = Math.max(1, level | 0);
+    return 1 + Math.min(0.55, (lv - 1) * 0.03);
+  }
+  function speedPay(speed) {
+    const s = speed > 0 ? speed : 0.8;
+    return clamp(0.92 + (s - 0.7) * 0.28, 0.88, 1.28);
+  }
+  function reachPay(reachFrac) {
+    const r = reachFrac > 0 ? reachFrac : 0.5;
+    return clamp(0.9 + r * 0.35, 0.9, 1.26);
+  }
+  function gradePay(grade) {
+    return GRADE_PAY[grade] || 1;
+  }
+
+  function shape(o) {
+    const row = Math.max(0, Math.min(3, o.row | 0));
+    const raw = ROW_PAY[row] * speedPay(o.speed) * reachPay(o.reachFrac) * gradePay(o.grade) * (o.gold ? GOLD_PAY : 1);
+    return { raw: raw, capped: Math.min(raw, SHAPE_CAP) };
+  }
+
+  function saucerBase(o) {
+    const shaped = shape(o || {});
+    return Math.max(1, Math.round(BASE * levelPay(o && o.level) * shaped.capped));
+  }
+
+  function withChain(base, chain) {
+    const steps = Math.max(1, chain | 0);
+    const mult = Math.min(CHAIN_CAP, 1 + (steps - 1) * 0.5);
+    return { points: Math.round(base * mult), mult: mult };
+  }
+
+  return {
+    BASE: BASE, ROW_PAY: ROW_PAY, GRADE_PAY: GRADE_PAY, GOLD_PAY: GOLD_PAY,
+    SHAPE_CAP: SHAPE_CAP, CHAIN_CAP: CHAIN_CAP,
+    levelPay: levelPay, speedPay: speedPay, reachPay: reachPay, gradePay: gradePay,
+    shape: shape, saucerBase: saucerBase, withChain: withChain,
+  };
+});
+
+</script>
+<script>
+"use strict";
 /* Pure progression for Yo. Cosmetic rewards only: no stat changes, one coin purse.
    The throw, string, and plate-point formulas stay in the game. This module owns
    save migration, level chests, bosses queued beside those levels, streaks, and
@@ -1634,7 +1810,7 @@ function layoutSim(S, w, h, ins) {
   S.R = clamp(Math.min(w, h) * .066, 20, 38) * (S.cfg.size || 1);
   S.Lmin = S.R * 1.2 + 12;
   const room = avail - S.R;
-  S.Lmax = Math.max(110, room * clamp(.8 * S.cfg.string, .55, .93));
+  S.Lmax = Math.max(110, room * YoSaucers.reachFraction(S.cfg.string || 1));
   S.handMinY = S.handBaseY - 36;
   S.handMaxY = S.handBaseY + Math.max(h * .14, room - S.Lmax + 34);
   S.hand.x = clamp(S.hand.x || w / 2, S.R + 8, w - S.R - 8);
@@ -2592,7 +2768,23 @@ function makePlate(spec, lane, i, n) {
   const gold = spec.lv >= 5 && i === n - 1;
   return { id: ++carn.id, kind: gold ? "gold" : "mid", r: spec.radius, pts: platePoints(spec, gold), lane, phase: i * 1.37, u0: S.w / 2, u: S.w / 2, v: P.Ay, rot: i * .7, born: carn.t, life: 1e9, moving: spec.motion !== "still", amp: spec.amp, w: spec.speed, ph: i * 1.37, slot: i };
 }
+function gridLayout(spec) {
+  const radius = YoSaucers.plateRadius(S.w, spec.radius);
+  const cols = YoSaucers.columnCenters(S.w, radius);
+  return { centers: cols.centers, left: cols.left, right: cols.right, cellW: cols.cellW, handBaseY: S.handBaseY, Lmax: S.Lmax, radius: radius };
+}
+function makeGridPlate(spec, row, col, slot) {
+  const bossSlot = row === 0 && col === 1;
+  const gold = bossSlot && spec.lv >= 5;
+  return { id: ++carn.id, grid: true, row: row, col: col, slot: slot, phase: slot * .85, motion: YoSaucers.motionFor(row, col), kind: gold ? "gold" : "mid", r: YoSaucers.plateRadius(S.w, spec.radius), pts: platePoints(spec, gold), lane: col - 1, u0: S.w / 2, u: S.w / 2, v: S.handBaseY, worldY: S.handBaseY, rot: slot * .4, born: carn.t, life: 1e9, moving: true, amp: 20, w: 1, ph: slot, armed: true, hp: 1, maxHp: 1 };
+}
 function posePlate(p, spec) {
+  if (p.grid) {
+    const lay = gridLayout(spec);
+    const posed = YoSaucers.pose(p, carn.t, spec.lv, lay);
+    p.u = posed.u; p.worldY = posed.worldY; p.rowFrac = posed.frac; p.v = posed.worldY; p.moving = true; p.r = lay.radius; p.w = posed.speed; p.ph = p.phase;
+    return;
+  }
   const n = Math.max(1, spec.alive);
   const pad = p.r + 14;
   const spacing = p.r * 2.2;
@@ -2623,30 +2815,29 @@ function carnUpdate(dt) {
   for (const b of carn.bursts) b.life -= dt; for (let i = carn.bursts.length - 1; i >= 0; i--) if (carn.bursts[i].life <= 0) carn.bursts.splice(i, 1);
   if (!carnOn()) { carn.plates.length = 0; carn.queue.length = 0; carn.forLevel = 0; return; }
   const spec = stageSpec(store.d.level);
-  if (carn.forLevel !== spec.lv || carn.plates.length + carn.queue.length !== spec.alive) {
+  const gridN = YoSaucers.cells().length;
+  if (carn.forLevel !== spec.lv || carn.plates.length + carn.queue.length !== gridN) {
     carn.bossCarry = (function () { const pl = carn.plates.find((q) => q.boss && q.hp > 0); return pl ? { level: pl.bossLevel | 0, hp: pl.hp, maxHp: pl.maxHp } : null; })();
     carn.plates.length = 0; carn.queue.length = 0; carn.forLevel = spec.lv; carn.chain = 0; carn.bossActive = 0;
-    const lanes = lanesFor(spec.alive);
-    lanes.forEach((lane, i) => carn.plates.push(makePlate(spec, lane, i, lanes.length)));
+    YoSaucers.cells().forEach((c) => carn.plates.push(makeGridPlate(spec, c.row, c.col, c.slot)));
   }
   for (const p of carn.plates) posePlate(p, spec);
   for (let i = carn.queue.length - 1; i >= 0; i--) {
     const q = carn.queue[i];
     if (carn.t < q.at) continue;
-    const lanes = lanesFor(spec.alive);
-    carn.plates.push(makePlate(spec, q.lane, q.i, lanes.length));
+    carn.plates.push(makeGridPlate(spec, q.row, q.col, q.slot));
     carn.queue.splice(i, 1);
   }
   ensureBoss(spec);
   if (carn.chain && carn.t - carn.lastHit > 3.2) carn.chain = 0;
   if (S.phase === "held" || S.phase === "dead") return;
-  const lowY = S.handBaseY + S.Lmax * .8, low = S.onFloor || S.yo.y >= Math.min(lowY, S.floorY - S.R - 4);
-  if (!low) { for (const p of carn.plates) if (p.boss) p.armed = true; return; }
-  const reach = S.R * 1.6 * .85;
   for (let i = carn.plates.length - 1; i >= 0; i--) {
     const p = carn.plates[i];
     if (carn.t - p.born < .35) continue;
-    const dist = Math.abs(p.u - S.yo.x), overlapping = dist < p.r + reach;
+    const reach = YoSaucers.hitReach(S.Lmax, p.r, S.R);
+    const y = p.worldY != null ? p.worldY : S.handBaseY + S.Lmax * .9;
+    const dist = Math.abs(p.u - S.yo.x);
+    const overlapping = dist < reach.horizontal && Math.abs(y - S.yo.y) < reach.vertical;
     if (p.boss) {
       if (!overlapping) { p.armed = true; continue; }
       if (!p.armed) continue;
@@ -2660,6 +2851,7 @@ function carnUpdate(dt) {
         continue;
       }
     } else if (!overlapping) continue;
+    p.pts = YoScore.saucerBase({ row: p.row | 0, speed: p.w || YoSaucers.speedFor(spec.lv, p.slot || 0), reachFrac: p.rowFrac || YoSaucers.ROW_FRAC[p.row | 0] || 0.5, level: spec.lv, grade: YoProgress.gradeHit(dist, p.r), gold: p.kind === "gold" || !!p.boss });
     smashPlate(i);
   }
 }
@@ -2681,7 +2873,7 @@ function ensureBoss(spec) {
 }
 function smashPlate(i) {
   const p = carn.plates[i]; carn.plates.splice(i, 1);
-  carn.queue.push({ lane: p.lane, i: p.slot, at: carn.t + .6 });
+  carn.queue.push({ row: p.row, col: p.col, slot: p.slot, at: carn.t + .6 });
   carn.chain = carn.t - carn.lastHit < 3.2 ? carn.chain + 1 : 1; carn.lastHit = carn.t; carn.hits++;
   const mult = Math.min(3, 1 + (carn.chain - 1) * .5), pts = Math.round(p.pts * mult);
   S.score += pts; bumpBest(S);
@@ -2692,9 +2884,9 @@ function smashPlate(i) {
   burst(S, S.yo.x, S.yo.y, S.reduced ? 4 : (grade === "perfect" ? 20 : grade === "great" ? 12 : 6), "spark");
   const cols = plateCols(p.kind), n = S.reduced ? 8 : 18;
   for (let k = 0; k < n; k++) { const a = Math.random() * TAU, sp = 90 + Math.random() * 260;
-    carn.shards.push({ u: p.u + Math.cos(a) * p.r * .4, v: p.v + Math.sin(a) * p.r * .4, h: 4, vu: Math.cos(a) * sp, vv: Math.sin(a) * sp, vh: 180 + Math.random() * 320, rot: Math.random() * TAU, vr: (Math.random() - .5) * 18,
+    carn.shards.push({ u: p.u + Math.cos(a) * p.r * .4, v: p.v + Math.sin(a) * p.r * .4, worldY: p.worldY, h: 4, vu: Math.cos(a) * sp, vv: Math.sin(a) * sp, vh: 180 + Math.random() * 320, rot: Math.random() * TAU, vr: (Math.random() - .5) * 18,
       life: .9 + Math.random() * .7, max: 1.6, size: p.r * (.22 + Math.random() * .26), col: cols[(Math.random() * cols.length) | 0] }); }
-  carn.bursts.push({ u: p.u, v: p.v, r: p.r, life: .55, max: .55, gold: p.kind === "gold" });
+  carn.bursts.push({ u: p.u, v: p.v, worldY: p.worldY, r: p.r, life: .55, max: .55, gold: p.kind === "gold" });
   if (!S.reduced) { S.shake = Math.max(S.shake, p.kind === "gold" ? 10 : 6); S.punch = Math.max(S.punch, .03); }
 }
 function plateCols(kind) {
@@ -2729,13 +2921,13 @@ function plateSprite(kind) {
 function drawPlates(g, t) {
   if (!carn.plates.length && !carn.bursts.length) return;
   const sf = P.sf;
-  for (const p of carn.plates) {
+  for (const p of carn.plates.slice().sort((a, b) => (b.worldY || 0) - (a.worldY || 0))) {
     const age = carn.t - p.born, pop = clamp(age / .35, 0, 1), out = clamp((p.life + .5 - age) / .5, 0, 1), sc = (pop < 1 ? 1 - Math.pow(1 - pop, 3) * 1 + Math.sin(pop * Math.PI) * .12 : 1) * out;
     if (sc <= .01) continue;
-    const q = fproj(p.u, p.v), r = p.r * sf * sc, img = plateSprite(p.kind), size = r / .44;
+    const q = p.worldY != null ? proj(p.u, p.worldY) : fproj(p.u, p.v), depth = p.worldY != null ? q.s : sf, r = p.r * depth * sc, img = plateSprite(p.kind), size = r / .44;
     g.save(); g.translate(q.x, q.y); g.rotate(p.rot + (p.moving ? Math.sin(t * 3 + p.ph) * .2 : 0)); g.drawImage(img, -size, -size, size * 2, size * 2); g.restore();
     if (p.kind === "gold" && !S.reduced) { g.globalCompositeOperation = "lighter"; for (let k = 0; k < 2; k++) { const a = t * 1.7 + k * 3.1, s2 = Math.max(0, Math.sin(t * 4 + k * 2)); if (s2 > .3) star4(g, q.x + Math.cos(a) * r * .6, q.y + Math.sin(a) * r * .6, r * .35 * s2, .9); } g.globalCompositeOperation = "source-over"; }
-    if (p.moving) { g.strokeStyle = rgba(TH.c.line, .3); g.lineWidth = 1.2; g.setLineDash([4, 5]); g.beginPath(); g.moveTo(fproj(p.u0 - p.amp - p.r, p.v).x, q.y); g.lineTo(fproj(p.u0 + p.amp + p.r, p.v).x, q.y); g.stroke(); g.setLineDash([]); }
+    if (p.moving && !p.grid) { g.strokeStyle = rgba(TH.c.line, .3); g.lineWidth = 1.2; g.setLineDash([4, 5]); g.beginPath(); g.moveTo(fproj(p.u0 - p.amp - p.r, p.v).x, q.y); g.lineTo(fproj(p.u0 + p.amp + p.r, p.v).x, q.y); g.stroke(); g.setLineDash([]); }
     if (p.boss) {
       g.font = "800 " + Math.max(11, r * .28) + "px Outfit, sans-serif"; g.textAlign = "center"; g.lineWidth = 3; g.strokeStyle = "rgba(24,10,2,.88)"; g.strokeText(p.bossName || "Boss", q.x, q.y - r - 8); g.fillStyle = "#ffe7a8";
       g.fillText(p.bossName || "Boss", q.x, q.y - r - 8);
@@ -2744,7 +2936,7 @@ function drawPlates(g, t) {
       g.fillStyle = "#ffe7a8"; g.fillRect(q.x - r * .7, q.y + r + 4, r * 1.4 * frac, 5);
     }
   }
-  for (const b of carn.bursts) { const k = 1 - b.life / b.max, q = fproj(b.u, b.v), r = b.r * sf * (1 + k * 2.2);
+  for (const b of carn.bursts) { const k = 1 - b.life / b.max, q = b.worldY != null ? proj(b.u, b.worldY) : fproj(b.u, b.v), r = b.r * (b.worldY != null ? q.s : sf) * (1 + k * 2.2);
     g.globalCompositeOperation = "lighter"; g.globalAlpha = (1 - k) * .9; g.drawImage(glowSprite, q.x - r * 1.4, q.y - r * 1.4, r * 2.8, r * 2.8);
     g.globalAlpha = 1 - k; g.strokeStyle = b.gold ? "#ffe27a" : TH.css.hi; g.lineWidth = 3 * (1 - k) + .5; g.beginPath(); g.arc(q.x, q.y, r, 0, TAU); g.stroke();
     g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; }
@@ -2752,7 +2944,7 @@ function drawPlates(g, t) {
 function drawShards(g) {
   if (!carn.shards.length) return;
   const sf = P.sf;
-  for (const s of carn.shards) { const q = fproj(s.u, s.v), lift = 1 + s.h / 260, sz = s.size * sf * lift;
+  for (const s of carn.shards) { const q = s.worldY != null ? proj(s.u, s.worldY) : fproj(s.u, s.v), lift = 1 + s.h / 260, sz = s.size * (s.worldY != null ? q.s : sf) * lift;
     g.globalAlpha = clamp(s.life / .35, 0, 1);
     if (s.h > 2) { g.fillStyle = "rgba(0,0,0,.25)"; g.beginPath(); g.arc(q.x + s.h * sf * .12, q.y + s.h * sf * .16, sz * .45, 0, TAU); g.fill(); }
     g.save(); g.translate(q.x - s.h * sf * .05, q.y - s.h * sf * .08); g.rotate(s.rot); g.fillStyle = s.col; g.beginPath(); g.moveTo(-sz * .5, -sz * .3); g.lineTo(sz * .55, -sz * .1); g.lineTo(-sz * .1, sz * .5); g.closePath(); g.fill();

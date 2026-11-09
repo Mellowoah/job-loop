@@ -40,6 +40,7 @@ button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:poin
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 #app{position:fixed;inset:0;overflow:hidden;background:var(--bg-deep)}
 #stage{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#arm{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
 #fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
 .tabular{font-variant-numeric:tabular-nums}
 .layer{position:absolute;inset:0;pointer-events:none}
@@ -90,13 +91,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .coin::after{content:"";position:absolute;inset:6px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(140,86,10,.55)}
 .mode-btn{width:48px;height:48px;display:grid;place-items:center;font-size:9px;font-weight:800;letter-spacing:.06em;color:var(--cream)}
 .mode-btn svg{width:19px;height:19px;margin-bottom:-3px}
-.toast{position:absolute;left:0;right:0;top:max(calc(var(--sat) + 120px),15%);text-align:center;pointer-events:none;opacity:0}
-.toast .n{font-family:var(--game);font-size:44px;line-height:1.05;color:#fff;-webkit-text-stroke:2px rgba(0,0,0,.55);paint-order:stroke fill;
+.toast{position:absolute;left:16px;right:auto;top:max(calc(var(--sat) + 168px),28%);text-align:left;pointer-events:none;opacity:0;max-width:42%}
+.toast .n{font-family:var(--game);font-size:34px;line-height:1.05;color:#fff;-webkit-text-stroke:2px rgba(0,0,0,.55);paint-order:stroke fill;
   background:linear-gradient(180deg,#fff,var(--accent-hi) 45%,var(--accent) 80%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 4px 0 rgba(0,0,0,.45)) drop-shadow(0 0 18px rgba(var(--accent-rgb),.6))}
 .toast .p{margin-top:4px;font-family:var(--game);font-size:22px;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.5)}
 .toast.show{animation:toast 1.4s var(--ease) forwards}
 .toast.bad .n{background:linear-gradient(180deg,#fff,#ffb3a3 50%,#ff6a4f);-webkit-background-clip:text;background-clip:text}
-.toast.big .n{font-size:54px}
+.toast.big .n{font-size:40px}
+.pops{position:absolute;inset:0;pointer-events:none;z-index:7;overflow:hidden}
+.pop{position:absolute;transform:translate(-50%,-120%);font-family:"Lilita One",Outfit,sans-serif;font-size:22px;color:#fff6df;-webkit-text-stroke:1px #2a1408;paint-order:stroke fill;text-shadow:0 2px 0 #1a0c06;white-space:nowrap}
 .bottombar{position:absolute;left:0;right:0;bottom:0;padding:0 calc(var(--sar) + 12px) calc(var(--sab) + 12px) calc(var(--sal) + 12px);pointer-events:none}
 .hint{text-align:center;font-size:14px;font-weight:500;line-height:1.35;color:rgba(255,255,255,.86);text-shadow:0 1px 3px rgba(0,0,0,.8);min-height:38px;padding:0 10px 8px;display:flex;align-items:flex-end;justify-content:center;text-wrap:balance}
 .tricks{display:flex;justify-content:center;gap:5px;padding:0 0 9px}
@@ -370,6 +373,7 @@ body:has(.sheet.on) .note{opacity:0}
 <body>
 <div id="app">
   <canvas id="stage" aria-label="Yo-yo playfield"></canvas>
+  <canvas id="arm" aria-hidden="true"></canvas>
 
   <div id="hud" class="layer">
     <div class="topbar">
@@ -389,7 +393,7 @@ body:has(.sheet.on) .note{opacity:0}
     <div id="lookTag" class="looktag frame round" hidden></div>
     <div id="callout" class="callout" aria-hidden="true"></div>
     <div id="stringPill" class="stringpill" hidden>Strings 3</div>
-    <div id="ringBanner" class="ringbanner" hidden></div>
+    <div id="pops" class="pops"></div>
     <button type="button" id="chestBtn" class="chest-btn frame" hidden>Chest</button>
     <div class="bottombar">
       <div class="hint sr-only" id="hint"></div>
@@ -553,1316 +557,12 @@ body:has(.sheet.on) .note{opacity:0}
   <canvas id="fx"></canvas>
   <div class="celebrate" id="celebrate"><div>DIAMOND<br>UNLOCKED!<small>NOW IN YOUR CASE</small></div></div>
 </div>
-<script>
-"use strict";
-/* Carnival saucers: 4 rows (far to near) by 3 columns. Movement and reach only. */
-(function (root, factory) {
-  const api = factory();
-  if (typeof module === "object" && module.exports) module.exports = api;
-  else root.YoSaucers = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  const ROWS = 4;
-  const COLS = 3;
-  // Top of the screen is far (end of the string). Bottom is near the hand.
-  const ROW_FRAC = [0.90, 0.68, 0.46, 0.24];
-  const ROW_HALF = 0.08;
-  const MOTIONS = ["drift", "patrol", "bob"];
-
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-  function oldReachFraction(string) {
-    const s = string > 0 ? string : 1;
-    return clamp(0.8 * s, 0.55, 0.93);
-  }
-  function reachFraction(string) {
-    const s = string > 0 ? string : 1;
-    return clamp(0.92 * s, 0.78, 0.98);
-  }
-
-  function cells() {
-    const out = [];
-    for (let row = 0; row < ROWS; row++) {
-      for (let col = 0; col < COLS; col++) out.push({ row: row, col: col, slot: row * COLS + col });
-    }
-    const boss = out.findIndex((c) => c.row === 0 && c.col === 1);
-    out.push(out.splice(boss, 1)[0]);
-    return out;
-  }
-
-  function speedFor(level, slot) {
-    const lv = Math.max(1, level | 0);
-    const base = 0.62 + Math.min(0.7, (lv - 1) * 0.045);
-    const vary = [0.78, 1, 1.18, 0.9][Math.abs(slot | 0) % 4];
-    return base * vary;
-  }
-
-  function motionFor(row, col) { return MOTIONS[(row * 2 + col) % MOTIONS.length]; }
-
-  function columnCenters(width, radius) {
-    const pad = Math.max(16, radius) + 8;
-    const left = pad;
-    const right = Math.max(left + COLS, width - pad);
-    const cellW = (right - left) / COLS;
-    const centers = [];
-    for (let col = 0; col < COLS; col++) centers.push(left + (col + 0.5) * cellW);
-    return { centers: centers, left: left, right: right, cellW: cellW };
-  }
-
-  function plateRadius(width, specRadius) {
-    const cell = Math.max(48, (Math.max(1, width) - 28) / COLS);
-    const fit = Math.min(18, cell * 0.12);
-    const specR = specRadius > 0 ? specRadius : fit;
-    return Math.max(12, Math.min(specR, fit));
-  }
-
-  function rowWorldY(handBaseY, Lmax, row) {
-    return handBaseY + ROW_FRAC[row] * Lmax;
-  }
-
-  function pose(cell, t, level, layout) {
-    const speed = speedFor(level, cell.slot);
-    const motion = cell.motion || motionFor(cell.row, cell.col);
-    const uAmp = layout.cellW * 0.30;
-    const phase = cell.phase != null ? cell.phase : cell.slot * 0.9;
-    let du = 0;
-    let dFrac = 0;
-    if (motion === "patrol") {
-      const cycle = Math.max(0.9, 2.6 / speed);
-      const ph = ((t * speed + phase) % cycle) / cycle;
-      du = (ph < 0.5 ? ph * 4 - 1 : 3 - ph * 4) * uAmp;
-    } else if (motion === "bob") {
-      du = Math.sin(t * speed * 0.85 + phase) * uAmp * 0.55;
-      dFrac = Math.sin(t * speed * 1.15 + phase) * 0.03;
-    } else {
-      du = Math.sin(t * speed + phase) * uAmp;
-      dFrac = Math.cos(t * speed * 0.65 + phase) * 0.028;
-    }
-    const frac = clamp(ROW_FRAC[cell.row] + dFrac, 0.16, 0.94);
-    const u = clamp(layout.centers[cell.col] + du, layout.left, layout.right);
-    return { u: u, frac: frac, worldY: layout.handBaseY + frac * layout.Lmax, moving: true, speed: speed, motion: motion };
-  }
-
-  function hitReach(Lmax, radius, yoR) {
-    return {
-      vertical: Math.max(12, Lmax * ROW_HALF),
-      horizontal: radius + yoR * 1.36,
-    };
-  }
-
-  function covers(handBaseY, Lmax, Lmin, yoR) {
-    const far = handBaseY + Lmax;
-    const near = handBaseY + Math.max(0, Lmin);
-    const pad = hitReach(Lmax, 0, yoR).vertical;
-    return ROW_FRAC.map(function (frac) {
-      const y = handBaseY + frac * Lmax;
-      return y <= far && y >= near && (y - pad) <= far && (y + pad) >= near;
-    });
-  }
-
-  function openRows(level) {
-    const lv = Math.max(1, level | 0);
-    if (lv >= 6) return 4;
-    if (lv >= 4) return 3;
-    if (lv >= 2) return 2;
-    return 1;
-  }
-  function openCells(level) {
-    const n = openRows(level);
-    return cells().filter(function (c) { return c.row < n; });
-  }
-  // Straight hang is the far ring only. A whip climbs toward the near ring.
-  function ringForAngle(absTheta) {
-    const a = Math.abs(absTheta) || 0;
-    if (a >= 1.15) return 3;
-    if (a >= 0.82) return 2;
-    if (a >= 0.56) return 1;
-    return 0;
-  }
-  function screenRadius(w, h) {
-    return Math.max(22, Math.min(36, Math.min(Math.max(1, w), Math.max(1, h)) * 0.05));
-  }
-  // Three columns across the width. The middle lane rests off the straight hang
-  // so a drop down the centre is not a free hit, and the path never crosses it.
-  const COL_REST = [0.16, 0.50, 0.84];
-  const COL_AMP = [0.045, 0.04, 0.045];
-  function playBand(h) {
-    const top = Math.max(96, h * 0.145);
-    const bot = h - Math.max(178, h * 0.25);
-    return { top: top, bot: Math.max(top + 80, bot) };
-  }
-  function screenSlot(row, col, w, h, t, level, phase) {
-    const band = playBand(h);
-    const yFrac = [0.03, 0.32, 0.60, 0.88][clamp(row | 0, 0, 3)];
-    const c = clamp(col | 0, 0, 2);
-    const y0 = band.top + (band.bot - band.top) * yFrac;
-    // The far-ring middle saucer sits off the straight hang. Nearer rings keep a true center column.
-    const hangBias = (row | 0) === 0 && c === 1 ? 0.15 : 0;
-    const x0 = w * (COL_REST[c] + hangBias);
-    const speed = speedFor(level, (row | 0) * 3 + c);
-    const motion = motionFor(row | 0, c);
-    const amp = w * COL_AMP[c];
-    const ph = phase || 0;
-    let x = x0;
-    let y = y0;
-    if (motion === "patrol") {
-      const cyc = Math.max(1.15, 2.5 / speed);
-      const p = ((t * speed + ph) % cyc) / cyc;
-      x += (p < 0.5 ? p * 4 - 1 : 3 - p * 4) * amp;
-    } else if (motion === "bob") {
-      y += Math.sin(t * speed * 1.2 + ph) * Math.min(20, (band.bot - band.top) * 0.04);
-      x += Math.sin(t * speed * 0.75 + ph) * amp * 0.7;
-    } else {
-      x += Math.sin(t * speed + ph) * amp;
-      y += Math.cos(t * speed * 0.72 + ph) * Math.min(14, (band.bot - band.top) * 0.028);
-    }
-    const r = screenRadius(w, h);
-    x = clamp(x, r + 4, w - r - 4);
-    y = clamp(y, band.top, band.bot);
-    return { x: x, y: y, r: r, x0: x0, y0: y0, amp: amp };
-  }
-  function hitSlop(w, r) {
-    const gap = Math.abs(0.66 - 0.04 - 0.5) * w;
-    return Math.max(12, Math.min(r, gap * 0.72));
-  }
-
-  return {
-    ROWS: ROWS, COLS: COLS, ROW_FRAC: ROW_FRAC, ROW_HALF: ROW_HALF,
-    cells: cells, speedFor: speedFor, motionFor: motionFor, columnCenters: columnCenters,
-    plateRadius: plateRadius, rowWorldY: rowWorldY, pose: pose, hitReach: hitReach, covers: covers,
-    oldReachFraction: oldReachFraction, reachFraction: reachFraction,
-    openRows: openRows, openCells: openCells, ringForAngle: ringForAngle,
-    screenRadius: screenRadius, screenSlot: screenSlot, playBand: playBand, hitSlop: hitSlop,
-    COL_REST: COL_REST,
-  };
-});
-
-</script>
-<script>
-"use strict";
-/* Spec scoring. Score and XP are separate. Chain and level never enter XP. */
-(function (root, factory) {
-  const api = factory();
-  if (typeof module === "object" && module.exports) module.exports = api;
-  else root.YoScore = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  const RING = [1, 1.25, 1.5, 2];
-  const GRADE = { good: 1, great: 1.2, perfect: 1.5 };
-  const GRADE_XP = { good: 1, great: 1.2, perfect: 1.5 };
-
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-  function levelOf(level) { return Math.max(1, level | 0); }
-
-  function basePoints(level) {
-    return Math.round(100 * Math.pow(1.06, levelOf(level) - 1));
-  }
-  function chainCap(level) {
-    return 2 + 0.5 * Math.floor(levelOf(level) / 10);
-  }
-  function chainMult(chain, level) {
-    const c = Math.max(1, chain | 0);
-    return Math.min(1 + 0.25 * (c - 1), chainCap(level));
-  }
-  function trickMult(distinct) {
-    const n = Math.max(0, distinct | 0);
-    return Math.min(2.5, 1 + 0.25 * n);
-  }
-  function ringPay(row) {
-    const i = clamp(row | 0, 0, 3);
-    return RING[i];
-  }
-  function gradePay(grade) { return GRADE[grade] || 1; }
-  function gradeXp(grade) { return GRADE_XP[grade] || 1; }
-
-  function hitScore(opts) {
-    const o = opts || {};
-    const gold = o.gold ? 2 : 1;
-    const raw = basePoints(o.level) * ringPay(o.row) * gradePay(o.grade) * gold * chainMult(o.chain || 1, o.level) * trickMult(o.tricks || 0);
-    return Math.max(1, Math.round(raw));
-  }
-  function hitXP(opts) {
-    const o = opts || {};
-    return Math.max(1, Math.round(10 * ringPay(o.row) * gradeXp(o.grade)));
-  }
-  function lineBonus(level) { return basePoints(level) * 5; }
-  function trickScore(base, level, combo) {
-    const c = Math.max(1, combo | 0);
-    return Math.round(base * Math.pow(1.06, levelOf(level) - 1) * (1 + 0.5 * (c - 1)));
-  }
-  function trickXP(base) { return Math.max(1, Math.round((base || 0) / 10)); }
-  function coinsForHit(level, gold) {
-    return 1 + Math.floor(levelOf(level) / 10) + (gold ? 3 : 0);
-  }
-  function bossHp(level) { return 3 + Math.floor(levelOf(level) / 5); }
-  function xpNeed(level) { return Math.round(250 * Math.pow(levelOf(level), 1.3)); }
-
-  // Pre-chain plate value. smashPlate applies chainMult.
-  function saucerBase(opts) {
-    const o = opts || {};
-    const gold = o.gold ? 2 : 1;
-    const raw = basePoints(o.level) * ringPay(o.row) * gradePay(o.grade) * gold * trickMult(o.tricks || 0);
-    return Math.max(1, Math.round(raw));
-  }
-
-  return {
-    RING: RING, GRADE: GRADE, GRADE_XP: GRADE_XP,
-    basePoints: basePoints, chainCap: chainCap, chainMult: chainMult, trickMult: trickMult,
-    ringPay: ringPay, hitScore: hitScore, hitXP: hitXP, lineBonus: lineBonus,
-    trickScore: trickScore, trickXP: trickXP, coinsForHit: coinsForHit, bossHp: bossHp,
-    xpNeed: xpNeed, saucerBase: saucerBase,
-  };
-});
-
-</script>
-<script>
-"use strict";
-/* Pure progression for Yo. Cosmetic rewards only: no stat changes, one coin purse.
-   The throw, string, and plate-point formulas stay in the game. This module owns
-   save migration, level chests, bosses queued beside those levels, streaks, and
-   the local weekly challenge. */
-(function (root, factory) {
-  const api = factory();
-  if (typeof module === "object" && module.exports) module.exports = api;
-  else root.YoProgress = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  const DUPLICATE_COINS = 50;
-  const WEEKLY_COINS = 150;
-  const RARITY_RANK = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 };
-  const LOOK_PRICE = { common: 150, uncommon: 400, rare: 900, epic: 1600, legendary: 2500 };
-  const BACKDROPS = [
-    { id: "boardwalk", name: "Night boardwalk", price: 0 },
-    { id: "midway", name: "Midway lamps", price: 1500 },
-    { id: "pier", name: "Pier lights", price: 1500 },
-    { id: "lake", name: "Lake night", price: 1500 },
-  ];
-  const PLAYABLE = ["pocket", "maple", "brass", "hound", "orbit", "night", "flower", "diamond"];
-  const THEMES = ["gold", "neon", "sunset"];
-  const WEIGHT = { common: 50, uncommon: 28, rare: 14, epic: 6, legendary: 2 };
-  const MOVE_PAY = { still: 1, sway: 1.1, drift: 1.2, lane: 1.3, orbit: 1.45 };
-
-  const COSMETICS = [
-    { id: "pocket-red", name: "Pocket Red", rarity: "common", blurb: "Red caps and a gold hub. The booth classic, as a look only.",
-      look: { hi: "#ff7a5a", mid: "#e23d2b", deep: "#7c1c12", rim: "#3a0e08", accent: "#ffd27a", hub: "#e7b15a" }, finish: "gloss", cap: "stripes", rimStyle: "single", trail: "" },
-    { id: "fair-cream", name: "Fair Cream", rarity: "common", blurb: "Cream and carmine, like a plate on the floor.",
-      look: { hi: "#fff8ec", mid: "#f4ead6", deep: "#c9b48a", rim: "#e7b15a", accent: "#d23a2a", hub: "#e7b15a" }, finish: "gloss", cap: "rings", rimStyle: "single", trail: "" },
-    { id: "park-leaf", name: "Park Leaf", rarity: "common", blurb: "Park green with a soft petal drift.",
-      look: { hi: "#e7f6c8", mid: "#6ea356", deep: "#234022", rim: "#1d3320", accent: "#d8f5a2", hub: "#ffe7a8" }, finish: "wood", cap: "petals", rimStyle: "scallop", trail: "petal" },
-    { id: "brass-glow", name: "Brass Glow", rarity: "uncommon", blurb: "Machined brass shine. The yo-yo you picked still decides the weight.",
-      look: { hi: "#fff0c0", mid: "#e2b158", deep: "#8a5a1c", rim: "#5a3a10", accent: "#fff8e0", hub: "#f3efe6" }, finish: "metal", cap: "engraved", rimStyle: "step", trail: "" },
-    { id: "hound-tread", name: "Hound Tread", rarity: "uncommon", blurb: "A rubber tread and a paw stamp. It does not roll any faster.",
-      look: { hi: "#d8c3a4", mid: "#8d6a45", deep: "#3e2a1c", rim: "#1a1410", accent: "#c45a3a", hub: "#c45a3a" }, finish: "matte", cap: "paw", rimStyle: "tyre", trail: "" },
-    { id: "pearl-orbit", name: "Pearl Orbit", rarity: "rare", blurb: "Pearl shell, orbit ring, a little glint. String length stays put.",
-      look: { hi: "#ffffff", mid: "#dcd6e8", deep: "#7d7890", rim: "#2c2a32", accent: "#e23d2b", hub: "#e7b15a" }, finish: "pearl", cap: "orbit", rimStyle: "thin", trail: "glint" },
-    { id: "night-neon", name: "Night Neon", rarity: "rare", blurb: "Gloss black and a red neon rim.",
-      look: { hi: "#4a4440", mid: "#1c1815", deep: "#050404", rim: "#ff2d3c", accent: "#ff2d3c", hub: "#e7b15a" }, finish: "gloss", cap: "star", rimStyle: "neon", trail: "" },
-    { id: "petal-bloom", name: "Petal Bloom", rarity: "rare", blurb: "Pastel petals leave the caps while it spins.",
-      look: { hi: "#fff2f8", mid: "#f6b8d6", deep: "#c97aa8", rim: "#fde7f0", accent: "#c9b6ff", hub: "#ffe17a" }, finish: "pastel", cap: "petals", rimStyle: "scallop", trail: "petal" },
-    { id: "ember-spin", name: "Ember Spin", rarity: "epic", blurb: "Sunset embers follow the spin. Score is unchanged.",
-      look: { hi: "#ffe0b8", mid: "#ff9a5a", deep: "#a33a22", rim: "#3a1406", accent: "#ffd27a", hub: "#ffe7a8" }, finish: "gloss", cap: "stripes", rimStyle: "single", trail: "ember" },
-    { id: "gild-plate", name: "Gild Plate", rarity: "epic", blurb: "Gold-plate glaze. Hits still pay the carnival table.",
-      look: { hi: "#fff6c8", mid: "#f5c542", deep: "#a86f12", rim: "#fff0a0", accent: "#fffbe0", hub: "#ffe27a" }, finish: "metal", cap: "engraved", rimStyle: "step", trail: "glint" },
-    { id: "prism-cut", name: "Prism Cut", rarity: "legendary", blurb: "Faceted crystal look. This is not the code-locked Diamond yo-yo.",
-      look: { hi: "#ffffff", mid: "#bff3ff", deep: "#2a6fb0", rim: "#dfe8f2", accent: "#ffffff", hub: "#f4f7fb" }, finish: "gem", cap: "facets", rimStyle: "silver", trail: "glint" },
-  ];
-  const COSMETIC_IDS = new Set(COSMETICS.map((c) => c.id));
-
-  const BOSSES = [
-    { name: "Ringmaster", hp: 3 },
-    { name: "Strongman", hp: 3 },
-    { name: "Fire Dancer", hp: 4 },
-    { name: "High Wire", hp: 4 },
-    { name: "Cannonball", hp: 5 },
-  ];
-
-  const WEEKLIES = [
-    { id: "sleepers", name: "Sleepers", desc: "Land 8 Sleepers.", stat: "sleeper", goal: 8 },
-    { id: "binds", name: "Clean binds", desc: "Land 4 clean binds.", stat: "bind", goal: 4 },
-    { id: "dogs", name: "Walk the dog", desc: "Walk the Dog 3 times.", stat: "dog", goal: 3 },
-    { id: "plates", name: "Plates", desc: "Smash 12 carnival plates.", stat: "plates", goal: 12 },
-    { id: "perfects", name: "Perfect hits", desc: "Land 5 Perfect hits.", stat: "perfects", goal: 5 },
-    { id: "whips", name: "Whips", desc: "Land 6 Whips.", stat: "whip", goal: 6 },
-    { id: "arounds", name: "Around the world", desc: "Around the World 3 times.", stat: "around", goal: 3 },
-  ];
-  const EXTRA_WEEKS = [];
-
-  const ACHIEVEMENTS = [
-    { id: "first-throw", name: "First snap", desc: "Throw the yo-yo.", test: (s) => s.stats.throws >= 1 },
-    { id: "sleeper", name: "Let it sleep", desc: "Land a Sleeper.", test: (s) => (s.tricks.sleeper || 0) >= 1 },
-    { id: "breakaway", name: "Side throw", desc: "Land a Breakaway.", test: (s) => (s.tricks.breakaway || 0) >= 1 },
-    { id: "dog", name: "Walk the dog", desc: "Walk the Dog.", test: (s) => (s.tricks.dog || 0) >= 1 },
-    { id: "baby", name: "Rock the baby", desc: "Rock the Baby.", test: (s) => (s.tricks.baby || 0) >= 1 },
-    { id: "whip", name: "Crack the whip", desc: "Land a Whip.", test: (s) => (s.tricks.whip || 0) >= 1 },
-    { id: "around", name: "Full circle", desc: "Around the World.", test: (s) => (s.tricks.around || 0) >= 1 },
-    { id: "bind", name: "Clean hands", desc: "Land a clean bind.", test: (s) => (s.tricks.bind || 0) >= 1 },
-    { id: "perfect", name: "Dead center", desc: "Land a Perfect hit.", test: (s) => s.stats.perfects >= 1 },
-    { id: "chain", name: "Plate chain", desc: "Chain 3 plate hits.", test: (s) => s.stats.bestChain >= 3 },
-    { id: "level-5", name: "Five deep", desc: "Reach level 5.", test: (s) => s.level >= 5 },
-    { id: "level-10", name: "Ten deep", desc: "Reach level 10.", test: (s) => s.level >= 10 },
-    { id: "chest", name: "Case opener", desc: "Open a level chest.", test: (s) => s.stats.chests >= 1 },
-    { id: "boss", name: "Top of the bill", desc: "Beat a carnival boss.", test: (s) => s.stats.bosses >= 1 },
-    { id: "streak-3", name: "Three-day run", desc: "Reach a 3-day streak.", test: (s) => (s.streak.best || 0) >= 3 },
-    { id: "streak-7", name: "Week of yo", desc: "Reach a 7-day streak.", test: (s) => (s.streak.best || 0) >= 7 },
-    { id: "collector", name: "Full case", desc: "Own all 11 collectible looks.", test: (s) => s.ownedCosmetics.length >= 11 },
-    { id: "weekly", name: "Weekly bill", desc: "Finish a weekly challenge.", test: (s) => s.stats.weeklies >= 1 },
-    { id: "four-figures", name: "Four figures", desc: "Reach a best of 1,000.", test: (s) => s.best >= 1000 },
-  ];
-
-  function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
-  function asNum(v) {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string" && v.trim() && Number.isFinite(Number(v))) return Number(v);
-    return null;
-  }
-  function clampNum(v, lo, hi, d) {
-    const n = asNum(v);
-    if (n == null) return d;
-    return Math.min(hi, Math.max(lo, n));
-  }
-  function pickNum(primary, fallback, lo, hi, d) {
-    const a = asNum(primary);
-    if (a != null) return Math.min(hi, Math.max(lo, a));
-    const b = asNum(fallback);
-    if (b != null) return Math.min(hi, Math.max(lo, b));
-    return d;
-  }
-  function hashStr(s) {
-    let h = 2166136261;
-    const str = String(s);
-    for (let i = 0; i < str.length; i++) {
-      h ^= str.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return h >>> 0;
-  }
-  function motionFor(lv) {
-    return lv <= 1 ? "still" : lv <= 3 ? "sway" : lv <= 6 ? "drift" : lv <= 9 ? "lane" : "orbit";
-  }
-  function xpNeed(lvl) {
-    const lv = Math.max(1, lvl | 0);
-    return Math.round(250 * Math.pow(lv, 1.3));
-  }
-  function defaultStats() {
-    return {
-      throws: 0, plates: 0, perfects: 0, greats: 0, goods: 0, bosses: 0, chests: 0, weeklies: 0,
-      playSeconds: 0, bestChain: 0, bestStreak: 0, runs: 0, sessions: 0, runSeconds: 0, lines: 0,
-      hitsByRing: [0, 0, 0, 0],
-    };
-  }
-  function defaultUpgrades() { return { bearing: 0, strings: 0, gold: 0 }; }
-  function defaultSave() {
-    return {
-      schemaVersion: 4,
-      selected: "pocket", best: 0, tricks: {}, sound: true, haptics: true, tilt: true, carnival: true, theme: "gold",
-      xp: 0, level: 1, coins: 0, codes: {}, plates: 0, seenInfo: false, shake: true, seed: "",
-      claimedChests: {}, revealQueue: [], bossesCleared: {}, pendingBosses: [], achievements: {},
-      stats: defaultStats(), streak: { count: 0, lastDay: "", best: 0 },
-      weekly: { key: "", id: "", progress: 0, goal: 0, claimed: false, rewarded: false },
-      cosmetic: "", ownedCosmetics: [], milestonesInitialized: false,
-      upgrades: defaultUpgrades(), ownedBackdrops: ["boardwalk"], backdrop: "boardwalk",
-      fishBest: 0, fishCaught: 0, shopUnlocked: false, bossGate: 0,
-    };
-  }
-  function freshSave() {
-    const s = defaultSave();
-    s.milestonesInitialized = true;
-    s.seed = "fresh";
-    return s;
-  }
-
-  function sanitizeTricks(raw) {
-    const out = {};
-    if (!isObj(raw)) return out;
-    for (const [k, v] of Object.entries(raw)) {
-      if (!/^[a-z0-9_-]{1,24}$/.test(k)) continue;
-      const n = asNum(v);
-      if (n == null || n < 0) continue;
-      out[k] = Math.min(1e9, Math.floor(n));
-    }
-    return out;
-  }
-  function sanitizeStats(raw, fallback) {
-    const base = defaultStats();
-    const sources = [isObj(fallback) ? fallback : null, isObj(raw) ? raw : null];
-    for (const src of sources) {
-      if (!src) continue;
-      for (const k of Object.keys(base)) {
-        const n = asNum(src[k]);
-        if (n != null && n >= 0) base[k] = Math.min(1e12, n);
-      }
-    }
-    base.throws = Math.floor(base.throws);
-    base.plates = Math.floor(base.plates);
-    base.perfects = Math.floor(base.perfects);
-    base.greats = Math.floor(base.greats);
-    base.goods = Math.floor(base.goods);
-    base.bosses = Math.floor(base.bosses);
-    base.chests = Math.floor(base.chests);
-    base.weeklies = Math.floor(base.weeklies);
-    base.bestChain = Math.floor(base.bestChain);
-    base.bestStreak = Math.floor(base.bestStreak);
-    base.runs = Math.floor(base.runs || 0);
-    base.sessions = Math.floor(base.sessions || 0);
-    base.lines = Math.floor(base.lines || 0);
-    base.runSeconds = Math.max(0, asNum(base.runSeconds) || 0);
-    const rings = [0, 0, 0, 0];
-    for (const src of sources) {
-      if (!src || !Array.isArray(src.hitsByRing)) continue;
-      for (let i = 0; i < 4; i++) {
-        const n = asNum(src.hitsByRing[i]);
-        if (n != null && n >= 0) rings[i] = Math.min(1e12, Math.floor(n));
-      }
-    }
-    base.hitsByRing = rings;
-    return base;
-  }
-  function sanitizeCodes(raw, fallback) {
-    const out = {};
-    const a = isObj(raw) ? raw : {};
-    const b = isObj(fallback) ? fallback : {};
-    if (a.diamond === true || b.diamond === true) out.diamond = true;
-    return out;
-  }
-  function boolish(primary, fallback, d) {
-    if (typeof primary === "boolean") return primary;
-    if (typeof fallback === "boolean") return fallback;
-    return d;
-  }
-  function localDay(date) {
-    const dt = date instanceof Date ? date : new Date(date);
-    if (Number.isNaN(dt.getTime())) return "1970-01-01";
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth() + 1).padStart(2, "0");
-    const d = String(dt.getDate()).padStart(2, "0");
-    return y + "-" + m + "-" + d;
-  }
-  function prevDay(dayStr) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayStr || "");
-    if (!m) return "";
-    const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-    dt.setDate(dt.getDate() - 1);
-    return localDay(dt);
-  }
-  function isoWeekKey(now) {
-    const dt = now instanceof Date ? now : new Date(now);
-    if (Number.isNaN(dt.getTime())) return "1970-W01";
-    const date = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
-    const dayNum = date.getUTCDay() || 7;
-    date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-    const week = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
-    return date.getUTCFullYear() + "-W" + String(week).padStart(2, "0");
-  }
-  function allWeeks() { return WEEKLIES.concat(EXTRA_WEEKS); }
-  function weeklyById(id) { return allWeeks().find((w) => w.id === id) || null; }
-  function weeklyFor(key) {
-    const list = allWeeks();
-    return list[hashStr("week:" + key) % list.length];
-  }
-  function registerWeekly(spec) {
-    if (!spec || typeof spec.id !== "string" || !spec.stat || !(spec.goal > 0)) return false;
-    if (allWeeks().some((w) => w.id === spec.id)) return false;
-    EXTRA_WEEKS.push({ id: spec.id, name: String(spec.name || spec.id), desc: String(spec.desc || ""), stat: String(spec.stat), goal: Math.floor(spec.goal) });
-    return true;
-  }
-  function unregisterWeekly(id) {
-    const i = EXTRA_WEEKS.findIndex((w) => w.id === id);
-    if (i < 0) return false;
-    EXTRA_WEEKS.splice(i, 1);
-    return true;
-  }
-  function weekCount() { return allWeeks().length; }
-
-  function cosmetic(id) { return COSMETICS.find((c) => c.id === id) || null; }
-  function visualModel(cfg, cosmeticId) {
-    if (!cfg) return cfg;
-    const c = cosmetic(cosmeticId);
-    if (!c) return cfg;
-    return Object.assign({}, cfg, { look: c.look, finish: c.finish, cap: c.cap, rimStyle: c.rimStyle, trail: c.trail || "" });
-  }
-  function gradeReach(distance, width) {
-    const w = Math.max(1, asNum(width) == null ? 1 : width);
-    const dist = Math.max(0, asNum(distance) == null ? w : distance);
-    const ratio = dist / w;
-    if (ratio <= 0.25) return "perfect";
-    if (ratio <= 0.55) return "great";
-    return "good";
-  }
-  function gradeHit(distance, radius) {
-    const r = Math.max(1, asNum(radius) == null ? 1 : radius);
-    const dist = Math.max(0, asNum(distance) == null ? r : distance);
-    const ratio = dist / r;
-    if (ratio <= 0.33) return "perfect";
-    if (ratio <= 0.7) return "great";
-    return "good";
-  }
-  function gradeWord(grade) {
-    if (grade === "perfect") return "Perfect";
-    if (grade === "great") return "Great";
-    return "Good";
-  }
-  function comboMultiplier(combo) {
-    const c = Math.max(0, combo | 0);
-    return 1 + Math.max(0, c - 1) * 0.5;
-  }
-  function comboCallout(combo) {
-    const m = comboMultiplier(combo);
-    if (m === 2 || m === 3 || m === 4) return "×" + m;
-    return "";
-  }
-  function trickPoints(base, combo) {
-    return Math.round(base * comboMultiplier(combo));
-  }
-  function bossFor(level) {
-    const lv = level | 0;
-    if (lv < 5 || lv % 5 !== 0) return null;
-    const tier = lv / 5;
-    const b = BOSSES[(tier - 1) % BOSSES.length];
-    const cycle = Math.floor((tier - 1) / BOSSES.length);
-    return { name: b.name, level: lv, hp: 3 + Math.floor(lv / 5), cycle: cycle };
-  }
-
-  function rollChest(save, level) {
-    const owned = new Set(save.ownedCosmetics || []);
-    const pool = COSMETICS.filter((c) => !owned.has(c.id));
-    if (!pool.length) {
-      const all = COSMETICS;
-      const idx = hashStr(String(save.seed) + ":dup:" + level) % all.length;
-      const c = all[idx];
-      const coins = 50 * (RARITY_RANK[c.rarity] || 1);
-      return { kind: "coins", coins: coins, cosmeticId: c.id, rarity: c.rarity };
-    }
-    const bag = pool.map((c) => ({ c, w: WEIGHT[c.rarity] || 1 }));
-    let total = 0;
-    for (const b of bag) total += b.w;
-    let x = hashStr(String(save.seed) + ":" + level) % total;
-    for (const b of bag) {
-      if (x < b.w) return { kind: "cosmetic", cosmeticId: b.c.id, rarity: b.c.rarity, coins: 0 };
-      x -= b.w;
-    }
-    const last = bag[bag.length - 1].c;
-    return { kind: "cosmetic", cosmeticId: last.id, rarity: last.rarity, coins: 0 };
-  }
-
-  function onMilestone(save, level, opts) {
-    const queueBoss = !opts || opts.queueBoss !== false;
-    const result = { chest: null, boss: false, alreadyChest: false, alreadyBoss: false };
-    const lv = level | 0;
-    if (lv % 5 !== 0 || lv <= 0) return result;
-    const key = String(lv);
-    if (save.claimedChests[key]) result.alreadyChest = true;
-    else {
-      const reward = rollChest(save, lv);
-      save.claimedChests[key] = { kind: reward.kind, cosmeticId: reward.cosmeticId || "", coins: reward.coins || 0, rarity: reward.rarity || "" };
-      if (reward.kind === "cosmetic") {
-        if (reward.cosmeticId && !save.ownedCosmetics.includes(reward.cosmeticId)) save.ownedCosmetics.push(reward.cosmeticId);
-      } else save.coins += reward.coins || 0;
-      save.stats.chests += 1;
-      save.revealQueue.push({ level: lv, kind: reward.kind, cosmeticId: reward.cosmeticId || "", coins: reward.coins || 0, rarity: reward.rarity || "", seen: false });
-      result.chest = save.claimedChests[key];
-    }
-    if (!queueBoss) return result;
-    if (save.bossesCleared[key]) result.alreadyBoss = true;
-    else if (!save.pendingBosses.some((n) => String(n) === key)) {
-      save.pendingBosses.push(lv);
-      save.pendingBosses.sort((a, b) => a - b);
-      result.boss = true;
-    }
-    return result;
-  }
-
-  // Same boss after the plates are rebuilt (a level change mid-fight). Does not heal.
-  function continueBoss(specHp, carry) {
-    const full = Math.max(1, specHp | 0);
-    if (!carry || !(carry.hp > 0)) return { hp: full, maxHp: full, resumed: false };
-    const maxHp = Math.max(1, Math.min(40, ((carry.maxHp > 0 ? carry.maxHp : full) | 0)));
-    const hp = Math.max(1, Math.min(maxHp, carry.hp | 0));
-    return { hp, maxHp, resumed: true };
-  }
-
-  function addXp(save, pts, opts) {
-    const gate = !!(opts && opts.gate);
-    if (typeof pts === "number" && Number.isFinite(pts) && pts > 0) {
-      const add = Math.round(pts);
-      if (add > 0) save.xp = Math.max(0, Math.round(save.xp || 0)) + add;
-    } else if (!(save.xp > 0)) return [];
-    const reached = [];
-    let guard = 0;
-    while (save.xp >= xpNeed(save.level) && guard++ < 80) {
-      const need = xpNeed(save.level);
-      if (!(need > 0)) break;
-      const next = save.level + 1;
-      if (gate && next % 5 === 0 && !save.bossesCleared[String(next)]) {
-        save.bossGate = next;
-        break;
-      }
-      save.xp -= need;
-      save.level = next;
-      reached.push(save.level);
-      onMilestone(save, save.level, { queueBoss: !gate });
-    }
-    if (save.xp < 0) save.xp = 0;
-    return reached;
-  }
-
-  function grantBossWin(save, level) {
-    const n = level | 0;
-    if (n <= 0 || n % 5 !== 0) return false;
-    const key = String(n);
-    const gated = (save.bossGate | 0) === n;
-    if (!save.bossesCleared[key]) {
-      save.bossesCleared[key] = true;
-      save.stats.bosses = (save.stats.bosses || 0) + 1;
-    }
-    save.pendingBosses = (save.pendingBosses || []).filter((l) => String(l) !== key);
-    const tier = n / 5;
-    save.coins = (save.coins || 0) + 25 * tier;
-    save.shopUnlocked = true;
-    if (!gated) return true;
-    const need = xpNeed(save.level);
-    save.xp = Math.max(0, (save.xp || 0) - need);
-    save.level = n;
-    save.bossGate = 0;
-    onMilestone(save, n, { queueBoss: false });
-    addXp(save, 0, { gate: true });
-    return true;
-  }
-
-  function stringCount(save) {
-    const t = Math.min(5, Math.max(0, ((save && save.upgrades && save.upgrades.strings) || 0) | 0));
-    return 3 + (t >= 2 ? 1 : 0) + (t >= 4 ? 1 : 0) + (t >= 5 ? 1 : 0);
-  }
-  function upgradeCost(tier) {
-    const n = Math.max(1, tier | 0);
-    return 150 * Math.pow(2, n - 1);
-  }
-  function buyUpgrade(save, track) {
-    if (!save || !save.shopUnlocked) return { ok: false, reason: "locked" };
-    if (track !== "bearing" && track !== "strings" && track !== "gold") return { ok: false, reason: "track" };
-    if (!save.upgrades) save.upgrades = defaultUpgrades();
-    const cur = save.upgrades[track] | 0;
-    if (cur >= 5) return { ok: false, reason: "max" };
-    const next = cur + 1;
-    if ((save.level | 0) < 5 * next) return { ok: false, reason: "level" };
-    const cost = upgradeCost(next);
-    if ((save.coins || 0) < cost) return { ok: false, reason: "coins" };
-    save.coins -= cost;
-    save.upgrades[track] = next;
-    return { ok: true, tier: next, cost: cost };
-  }
-  function buyLook(save, id) {
-    if (!save || !save.shopUnlocked) return { ok: false, reason: "locked" };
-    const c = COSMETICS.find((x) => x.id === id);
-    if (!c) return { ok: false, reason: "missing" };
-    if ((save.ownedCosmetics || []).includes(id)) return { ok: false, reason: "owned" };
-    const cost = LOOK_PRICE[c.rarity] || 150;
-    if ((save.coins || 0) < cost) return { ok: false, reason: "coins" };
-    save.coins -= cost;
-    save.ownedCosmetics.push(id);
-    return { ok: true, cost: cost };
-  }
-  function buyBackdrop(save, id) {
-    if (!save || !save.shopUnlocked) return { ok: false, reason: "locked" };
-    const b = BACKDROPS.find((x) => x.id === id);
-    if (!b) return { ok: false, reason: "missing" };
-    if (!save.ownedBackdrops) save.ownedBackdrops = ["boardwalk"];
-    if (save.ownedBackdrops.includes(id)) {
-      save.backdrop = id;
-      return { ok: true, cost: 0, equipped: true };
-    }
-    if ((save.coins || 0) < b.price) return { ok: false, reason: "coins" };
-    save.coins -= b.price;
-    save.ownedBackdrops.push(id);
-    save.backdrop = id;
-    return { ok: true, cost: b.price };
-  }
-
-  function defeatBoss(save, level) {
-    const n = level | 0;
-    if (n <= 0 || n % 5 !== 0) return false;
-    const key = String(n);
-    if (save.bossesCleared[key]) return false;
-    save.bossesCleared[key] = true;
-    save.pendingBosses = (save.pendingBosses || []).filter((l) => String(l) !== key);
-    save.stats.bosses = (save.stats.bosses || 0) + 1;
-    return true;
-  }
-
-  function touchStreak(save, now) {
-    const today = localDay(now);
-    const streak = save.streak || (save.streak = { count: 0, lastDay: "", best: 0 });
-    if (streak.lastDay === today) return { changed: false, missed: false, count: streak.count, skew: false };
-    if (streak.lastDay && streak.lastDay > today) return { changed: false, missed: false, count: streak.count, skew: true };
-    const yesterday = prevDay(today);
-    let missed = false;
-    if (!streak.lastDay) streak.count = 1;
-    else if (streak.lastDay === yesterday) streak.count = (streak.count || 0) + 1;
-    else { missed = true; streak.count = 1; }
-    streak.lastDay = today;
-    streak.best = Math.max(streak.best || 0, streak.count);
-    save.stats.bestStreak = Math.max(save.stats.bestStreak || 0, streak.best);
-    return { changed: true, missed, count: streak.count, skew: false };
-  }
-
-  function ensureWeekly(save, now) {
-    const key = isoWeekKey(now);
-    const spec = weeklyFor(key);
-    if (save.weekly && save.weekly.key === key && weeklyById(save.weekly.id)) return { rolled: false, key, spec: weeklyById(save.weekly.id) };
-    const prev = save.weekly && save.weekly.key ? { key: save.weekly.key, id: save.weekly.id, progress: save.weekly.progress || 0, claimed: !!save.weekly.claimed } : null;
-    save.weekly = { key, id: spec.id, progress: 0, goal: spec.goal, claimed: false, rewarded: false };
-    return { rolled: true, key, prev, spec };
-  }
-
-  function bumpWeekly(save, stat, n) {
-    if (!save.weekly || save.weekly.claimed || save.weekly.rewarded) return false;
-    const spec = weeklyById(save.weekly.id);
-    if (!spec || spec.stat !== stat) return false;
-    const add = typeof n === "number" ? Math.round(n) : 1;
-    if (!Number.isFinite(add) || add <= 0) return false;
-    const goal = save.weekly.goal > 0 ? save.weekly.goal : spec.goal;
-    save.weekly.progress = Math.min(goal, (save.weekly.progress || 0) + add);
-    if (save.weekly.progress >= goal) {
-      save.weekly.claimed = true;
-      save.weekly.rewarded = true;
-      save.coins += WEEKLY_COINS;
-      save.stats.weeklies = (save.stats.weeklies || 0) + 1;
-      return true;
-    }
-    return false;
-  }
-
-  function syncAchievements(save, now) {
-    const fresh = [];
-    const ts = (now instanceof Date ? now : new Date(now || Date.now())).toISOString();
-    save.achievements = isObj(save.achievements) ? save.achievements : {};
-    for (const a of ACHIEVEMENTS) {
-      if (save.achievements[a.id]) continue;
-      try {
-        if (a.test(save)) { save.achievements[a.id] = ts; fresh.push(a.id); }
-      } catch (e) { /* a bad save field should not throw */ }
-    }
-    return fresh;
-  }
-  function achievement(id) { return ACHIEVEMENTS.find((a) => a.id === id) || null; }
-
-  function equipCosmetic(save, id) {
-    if (!id) { save.cosmetic = ""; return true; }
-    if (!COSMETIC_IDS.has(id) || !save.ownedCosmetics.includes(id)) return false;
-    save.cosmetic = id;
-    return true;
-  }
-
-  function parseBucket(raw, warnings, label) {
-    if (raw == null || raw === "") return { ok: false, value: null };
-    if (typeof raw !== "string") {
-      if (isObj(raw)) return { ok: true, value: raw };
-      warnings.push("corrupt-" + label);
-      return { ok: false, value: null };
-    }
-    try {
-      const v = JSON.parse(raw);
-      if (!isObj(v)) { warnings.push("corrupt-" + label); return { ok: false, value: null }; }
-      return { ok: true, value: v };
-    } catch (e) {
-      warnings.push("corrupt-" + label);
-      return { ok: false, value: null };
-    }
-  }
-
-  function sanitizeReveal(item) {
-    if (!isObj(item)) return null;
-    const level = asNum(item.level);
-    if (level == null || level < 5 || level % 5 !== 0) return null;
-    const kind = item.kind === "coins" ? "coins" : "cosmetic";
-    const cosmeticId = kind === "cosmetic" && COSMETIC_IDS.has(item.cosmeticId) ? item.cosmeticId : "";
-    if (kind === "cosmetic" && !cosmeticId) return null;
-    const coins = kind === "coins" ? Math.max(0, Math.round(asNum(item.coins) || 0)) : 0;
-    return { level: Math.floor(level), kind, cosmeticId, coins, rarity: typeof item.rarity === "string" ? item.rarity : "", seen: item.seen === true };
-  }
-
-  function sanitize(merged, fallback, opts) {
-    const playable = (opts && opts.playable) || PLAYABLE;
-    const themes = (opts && opts.themes) || THEMES;
-    const fb = isObj(fallback) ? fallback : defaultSave();
-    const save = defaultSave();
-    const sel = typeof merged.selected === "string" && playable.includes(merged.selected) ? merged.selected
-      : (typeof fb.selected === "string" && playable.includes(fb.selected) ? fb.selected : "pocket");
-    save.selected = sel;
-    save.best = Math.round(pickNum(merged.best, fb.best, 0, 1e12, 0));
-    save.xp = Math.round(pickNum(merged.xp, fb.xp, 0, 1e12, 0));
-    save.level = Math.max(1, Math.floor(pickNum(merged.level, fb.level, 1, 100000, 1)));
-    save.coins = Math.round(pickNum(merged.coins, fb.coins, 0, 1e12, 0));
-    save.plates = Math.floor(pickNum(merged.plates, fb.plates, 0, 1e12, 0));
-    save.tricks = sanitizeTricks(isObj(merged.tricks) ? merged.tricks : fb.tricks);
-    save.codes = sanitizeCodes(isObj(merged.codes) ? merged.codes : null, isObj(fb.codes) ? fb.codes : null);
-    save.sound = boolish(merged.sound, fb.sound, true);
-    save.haptics = boolish(merged.haptics, fb.haptics, true);
-    save.tilt = boolish(merged.tilt, fb.tilt, true);
-    save.carnival = boolish(merged.carnival, fb.carnival, true);
-    save.shake = boolish(merged.shake, fb.shake, true);
-    save.seenInfo = boolish(merged.seenInfo, fb.seenInfo, false);
-    const theme = typeof merged.theme === "string" && themes.includes(merged.theme) ? merged.theme
-      : (typeof fb.theme === "string" && themes.includes(fb.theme) ? fb.theme : "gold");
-    save.theme = theme;
-    save.seed = typeof merged.seed === "string" && merged.seed.length <= 64 ? merged.seed : (typeof fb.seed === "string" ? fb.seed : "");
-    save.stats = sanitizeStats(merged.stats, fb.stats);
-    const ownedSrc = Array.isArray(merged.ownedCosmetics) ? merged.ownedCosmetics : (Array.isArray(fb.ownedCosmetics) ? fb.ownedCosmetics : []);
-    save.ownedCosmetics = [];
-    for (const id of ownedSrc) if (COSMETIC_IDS.has(id) && !save.ownedCosmetics.includes(id)) save.ownedCosmetics.push(id);
-    save.cosmetic = COSMETIC_IDS.has(merged.cosmetic) && save.ownedCosmetics.includes(merged.cosmetic) ? merged.cosmetic : "";
-    save.claimedChests = {};
-    const claimed = isObj(merged.claimedChests) ? merged.claimedChests : (isObj(fb.claimedChests) ? fb.claimedChests : {});
-    for (const [k, v] of Object.entries(claimed)) {
-      const n = Number(k);
-      if (!Number.isFinite(n) || n < 5 || n % 5 !== 0 || !isObj(v)) continue;
-      save.claimedChests[String(n)] = {
-        kind: v.kind === "coins" ? "coins" : "cosmetic",
-        cosmeticId: COSMETIC_IDS.has(v.cosmeticId) ? v.cosmeticId : "",
-        coins: Math.max(0, Math.round(asNum(v.coins) || 0)),
-        rarity: typeof v.rarity === "string" ? v.rarity : "",
-      };
-    }
-    const queueSrc = Array.isArray(merged.revealQueue) ? merged.revealQueue : (Array.isArray(fb.revealQueue) ? fb.revealQueue : []);
-    save.revealQueue = queueSrc.map(sanitizeReveal).filter(Boolean).slice(0, 40);
-    save.bossesCleared = {};
-    const cleared = isObj(merged.bossesCleared) ? merged.bossesCleared : (isObj(fb.bossesCleared) ? fb.bossesCleared : {});
-    for (const [k, v] of Object.entries(cleared)) {
-      const n = Number(k);
-      if (v === true && n >= 5 && n % 5 === 0) save.bossesCleared[String(n)] = true;
-    }
-    const pendingSrc = Array.isArray(merged.pendingBosses) ? merged.pendingBosses : (Array.isArray(fb.pendingBosses) ? fb.pendingBosses : []);
-    const pending = [];
-    for (const n of pendingSrc) {
-      const lv = n | 0;
-      if (lv >= 5 && lv % 5 === 0 && !save.bossesCleared[String(lv)] && !pending.includes(lv)) pending.push(lv);
-    }
-    pending.sort((a, b) => a - b);
-    save.pendingBosses = pending;
-    save.achievements = {};
-    const ach = isObj(merged.achievements) ? merged.achievements : (isObj(fb.achievements) ? fb.achievements : {});
-    for (const a of ACHIEVEMENTS) {
-      if (typeof ach[a.id] === "string" && ach[a.id].length <= 40) save.achievements[a.id] = ach[a.id];
-    }
-    const st = isObj(merged.streak) ? merged.streak : (isObj(fb.streak) ? fb.streak : {});
-    const lastDay = typeof st.lastDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(st.lastDay) ? st.lastDay : "";
-    save.streak = {
-      count: Math.max(0, Math.floor(asNum(st.count) || 0)),
-      lastDay,
-      best: Math.max(0, Math.floor(asNum(st.best) || 0)),
-    };
-    save.stats.bestStreak = Math.max(save.stats.bestStreak, save.streak.best);
-    const w = isObj(merged.weekly) ? merged.weekly : (isObj(fb.weekly) ? fb.weekly : {});
-    if (w && typeof w.key === "string" && weeklyById(w.id)) {
-      save.weekly = {
-        key: w.key,
-        id: w.id,
-        progress: Math.max(0, Math.floor(asNum(w.progress) || 0)),
-        goal: Math.max(1, Math.floor(asNum(w.goal) || weeklyById(w.id).goal)),
-        claimed: w.claimed === true,
-        rewarded: w.rewarded === true || w.claimed === true && w.rewarded !== false && w.claimed === true && (asNum(w.progress) || 0) >= (asNum(w.goal) || weeklyById(w.id).goal) && w.rewarded === true,
-      };
-      if (save.weekly.claimed && !save.weekly.rewarded) {
-        /* Completed flag without the coin flag: the coins were not recorded. Leave rewarded false
-           so a later bump does not pay twice if progress was already saved as claimed.
-           If claimed is set, bumpWeekly will not pay again. Mark rewarded so a reload cannot pay late. */
-        save.weekly.rewarded = true;
-      }
-    }
-    save.milestonesInitialized = merged.milestonesInitialized === true || fb.milestonesInitialized === true;
-    if (save.cosmetic && !save.ownedCosmetics.includes(save.cosmetic)) save.cosmetic = "";
-    save.schemaVersion = 4;
-    const up = isObj(merged.upgrades) ? merged.upgrades : (isObj(fb.upgrades) ? fb.upgrades : {});
-    const tier = (v) => { const n = asNum(v); return n == null || n < 0 ? 0 : Math.min(5, Math.floor(n)); };
-    save.upgrades = { bearing: tier(up.bearing), strings: tier(up.strings), gold: tier(up.gold) };
-    const knownBacks = new Set(BACKDROPS.map((b) => b.id));
-    const backSrc = Array.isArray(merged.ownedBackdrops) ? merged.ownedBackdrops : (Array.isArray(fb.ownedBackdrops) ? fb.ownedBackdrops : ["boardwalk"]);
-    save.ownedBackdrops = [];
-    for (const id of backSrc) if (knownBacks.has(id) && !save.ownedBackdrops.includes(id)) save.ownedBackdrops.push(id);
-    if (!save.ownedBackdrops.includes("boardwalk")) save.ownedBackdrops.unshift("boardwalk");
-    const bd = typeof merged.backdrop === "string" ? merged.backdrop : (typeof fb.backdrop === "string" ? fb.backdrop : "boardwalk");
-    save.backdrop = save.ownedBackdrops.includes(bd) ? bd : "boardwalk";
-    save.fishBest = Math.round(pickNum(merged.fishBest, fb.fishBest, 0, 1e12, 0));
-    save.fishCaught = Math.floor(pickNum(merged.fishCaught, fb.fishCaught, 0, 1e12, 0));
-    save.shopUnlocked = merged.shopUnlocked === true || fb.shopUnlocked === true;
-    const gate = asNum(merged.bossGate);
-    save.bossGate = gate != null && gate > save.level && gate % 5 === 0 ? Math.floor(gate) : 0;
-    return save;
-  }
-
-  function loadFromBuckets(input, opts) {
-    const warnings = [];
-    const src = input || {};
-    const storageOk = src.storageOk !== false;
-    if (!storageOk) warnings.push("storage-unavailable");
-    const now = opts && opts.now != null ? new Date(opts.now) : new Date();
-    const parsedV2 = storageOk ? parseBucket(src.v2Raw, warnings, "v2") : { ok: false, value: null };
-    const parsedV3 = storageOk ? parseBucket(src.v3Raw, warnings, "v3") : { ok: false, value: null };
-    const v2 = parsedV2.ok ? parsedV2.value : {};
-    const v3 = parsedV3.ok ? parsedV3.value : {};
-    const fallback = Object.assign(defaultSave(), parsedV2.ok ? v2 : {});
-    const merged = Object.assign(defaultSave(), parsedV2.ok ? v2 : {}, parsedV3.ok ? v3 : {});
-    const save = sanitize(merged, fallback, opts || {});
-    let dirty = false;
-    const incomingSchema = parsedV3.ok ? (asNum(v3.schemaVersion) || 0) : 0;
-    if (incomingSchema < 4) {
-      for (let lv = 5; lv <= save.level; lv += 5) save.bossesCleared[String(lv)] = true;
-      const cap = Math.max(0, xpNeed(save.level) - 1);
-      if (save.xp > cap) save.xp = cap;
-      save.bossGate = 0;
-      save.schemaVersion = 4;
-      dirty = true;
-    }
-    const hadSeed = (parsedV2.ok && typeof v2.seed === "string" && v2.seed) || (parsedV3.ok && typeof v3.seed === "string" && v3.seed);
-    if (!hadSeed && opts && opts.seed) save.seed = opts.seed;
-    if (!save.seed) {
-      const rng = (opts && opts.rng) || Math.random;
-      save.seed = Math.floor(rng() * 1e9).toString(36);
-      dirty = true;
-    }
-    if (!save.milestonesInitialized) {
-      for (let lv = 5; lv <= save.level; lv += 5) onMilestone(save, lv, { queueBoss: false });
-      save.milestonesInitialized = true;
-      dirty = true;
-    }
-    const week = ensureWeekly(save, now);
-    if (week.rolled && save.level >= 1) dirty = true;
-    const streak = touchStreak(save, now);
-    if (streak.changed) dirty = true;
-    const achievements = syncAchievements(save, now);
-    if (achievements.length) dirty = true;
-    return { save, warnings, persistent: storageOk, dirty, streak, week, achievements };
-  }
-
-  function resetProgress(save) {
-    const next = defaultSave();
-    next.sound = save.sound !== false;
-    next.haptics = save.haptics !== false;
-    next.tilt = !!save.tilt;
-    next.carnival = save.carnival !== false;
-    next.shake = save.shake !== false;
-    next.theme = THEMES.includes(save.theme) ? save.theme : "gold";
-    next.seenInfo = !!save.seenInfo;
-    next.codes = sanitizeCodes(save.codes, null);
-    next.seed = save.seed || next.seed || "fresh";
-    next.milestonesInitialized = true;
-    next.selected = "pocket";
-    next.weekly = { key: "", id: "", progress: 0, goal: 0, claimed: false, rewarded: false };
-    return next;
-  }
-
-  function summary(save) {
-    const spec = weeklyById(save.weekly && save.weekly.id);
-    return {
-      level: save.level, xp: save.xp, need: xpNeed(save.level), coins: save.coins, best: save.best,
-      owned: save.ownedCosmetics.slice(), cosmetic: save.cosmetic,
-      streak: save.streak.count, streakBest: save.streak.best,
-      weekly: Object.assign({}, save.weekly, { name: spec ? spec.name : "", desc: spec ? spec.desc : "" }),
-      pendingBosses: save.pendingBosses.slice(),
-      chests: Object.keys(save.claimedChests),
-      achievements: Object.keys(save.achievements),
-      reveal: save.revealQueue.length,
-    };
-  }
-
-  return {
-    COSMETICS, ACHIEVEMENTS, DUPLICATE_COINS, WEEKLY_COINS, PLAYABLE,
-    xpNeed, motionFor, freshSave, defaultSave, loadFromBuckets, resetProgress, sanitize,
-    addXp, onMilestone, rollChest, defeatBoss, grantBossWin, bossFor, continueBoss,
-    stringCount, upgradeCost, buyUpgrade, buyLook, buyBackdrop,
-    BACKDROPS, LOOK_PRICE, RARITY_RANK,
-    touchStreak, localDay, prevDay, isoWeekKey, ensureWeekly, bumpWeekly, weeklyFor, weeklyById,
-    registerWeekly, unregisterWeekly, weekCount,
-    syncAchievements, achievement, equipCosmetic, cosmetic, visualModel,
-    gradeHit, gradeReach, gradeWord, comboMultiplier, comboCallout, trickPoints, summary, hashStr,
-  };
-});
-
-</script>
-<script>
-"use strict";
-/* Menu screens and the chest reveal. Scoring stays in the game. */
-(function (root, factory) {
-  const api = factory();
-  if (typeof module === "object" && module.exports) module.exports = api;
-  else root.YoExtra = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  function install(api) {
-    const { $, store, S, toast, note, sfx, buzz, openSheet, drawYoyo3q, isPlaying, isReduced, setProgressHook } = api;
-    const Y = globalThis.YoProgress;
-    if (!Y) return;
-    let previewId = "";
-    let previewTouched = false;
-    let revealTimer = 0;
-    let rewardLock = false;
-
-    function specOf(save) { return Y.weeklyById(save.weekly && save.weekly.id); }
-
-    function renderCollection() {
-      const grid = $("colGrid");
-      if (!grid) return;
-      const owned = new Set(store.d.ownedCosmetics || []);
-      const equipped = store.d.cosmetic || "";
-      if (!previewTouched) previewId = equipped || (store.d.ownedCosmetics && store.d.ownedCosmetics[0]) || (Y.COSMETICS[0] && Y.COSMETICS[0].id);
-      grid.innerHTML = Y.COSMETICS.map((c) => {
-        const have = owned.has(c.id);
-        const on = equipped === c.id;
-        return `<button type="button" class="colcard" data-id="${c.id}" aria-pressed="${on ? "true" : "false"}"${have ? "" : " disabled"}>` +
-          `<span class="rarity ${c.rarity}">${c.rarity}</span>` +
-          `<span class="cname">${have ? c.name : "???"}</span>` +
-          `<span class="csub">${on ? "In play" : have ? "Tap to wear" : "In a chest"}</span></button>`;
-      }).join("");
-      const count = $("colOwned");
-      if (count) count.textContent = owned.size + " / " + Y.COSMETICS.length;
-      drawPreview();
-    }
-
-    function drawPreview() {
-      const cv = $("colPreview");
-      const blurb = $("colBlurb");
-      if (!cv || !previewId) return;
-      const c = Y.cosmetic(previewId);
-      if (!c) return;
-      const have = (store.d.ownedCosmetics || []).includes(c.id);
-      if (blurb) blurb.textContent = have ? c.blurb : "Still in the booth. Level chests hand these out. Looks never change the throw.";
-      const px = cv.width, g = cv.getContext("2d");
-      g.setTransform(1, 0, 0, 1, 0, 0);
-      g.clearRect(0, 0, px, cv.height);
-      if (!have) {
-        g.fillStyle = "rgba(255,255,255,.35)";
-        g.font = "700 14px Outfit, sans-serif";
-        g.textAlign = "center";
-        g.fillText("Locked", px / 2, cv.height / 2);
-        return;
-      }
-      const model = Y.visualModel({ id: "pocket", size: 1, look: {}, finish: "gloss", cap: "stripes", rimStyle: "single", trail: "" }, c.id);
-      try { if (drawYoyo3q) drawYoyo3q(g, px * 0.42, cv.height * 0.52, px * 0.28, model, (S.time || 0) * 0.8, S.time || 0); } catch (e) {}
-    }
-
-    function renderAchievements() {
-      const list = $("achList");
-      if (!list) return;
-      list.innerHTML = Y.ACHIEVEMENTS.map((a) => {
-        const on = !!store.d.achievements[a.id];
-        return `<li class="${on ? "got" : ""}"><b>${on ? a.name : a.name}</b><span>${a.desc}${on ? "" : ""}</span></li>`;
-      }).join("");
-      const n = Object.keys(store.d.achievements || {}).length;
-      const t = $("achCount");
-      if (t) t.textContent = n + " / " + Y.ACHIEVEMENTS.length;
-    }
-
-    function renderStats() {
-      const list = $("statsList");
-      if (!list) return;
-      const d = store.d, s = d.stats || {};
-      const rows = [
-        ["Level", d.level],
-        ["XP", Math.round(d.xp) + " / " + Y.xpNeed(d.level)],
-        ["Best", Math.round(d.best)],
-        ["Coins", Math.round(d.coins)],
-        ["Streak", (d.streak && d.streak.count) || 0],
-        ["Best streak", (d.streak && d.streak.best) || 0],
-        ["Throws", s.throws || 0],
-        ["Plates", s.plates || d.plates || 0],
-        ["Perfect / Great / Good", (s.perfects || 0) + " / " + (s.greats || 0) + " / " + (s.goods || 0)],
-        ["Best plate chain", s.bestChain || 0],
-        ["Bosses", s.bosses || 0],
-        ["Chests", s.chests || 0],
-        ["Weeks cleared", s.weeklies || 0],
-        ["Looks", (d.ownedCosmetics || []).length + " / 11"],
-        ["Runs", s.runs || 0],
-        ["Lines", s.lines || 0],
-        ["Ring hits", (s.hitsByRing || [0, 0, 0, 0]).join(" · ")],
-        ["Lake best", d.fishBest || 0],
-        ["Play time", fmtTime(s.playSeconds || 0)],
-      ];
-      list.innerHTML = rows.map(([k, v]) => `<div class="statrow"><span>${k}</span><b class="tabular">${v}</b></div>`).join("");
-    }
-
-    function fmtTime(sec) {
-      const s = Math.floor(sec);
-      const m = Math.floor(s / 60);
-      const h = Math.floor(m / 60);
-      if (h > 0) return h + "h " + (m % 60) + "m";
-      return m + "m " + (s % 60) + "s";
-    }
-
-    function renderWeek() {
-      const body = $("weekBody");
-      if (!body) return;
-      const spec = specOf(store.d);
-      const w = store.d.weekly || {};
-      if (!spec) { body.textContent = "This week's challenge will show up when the date is available."; return; }
-      const done = !!w.rewarded || !!w.claimed;
-      body.innerHTML = `<p class="weeklead">${spec.desc}</p>` +
-        `<p class="weekmeta tabular">${Math.min(w.progress || 0, w.goal || spec.goal)} / ${w.goal || spec.goal}${done ? " · cleared" : ""}</p>` +
-        `<p class="weeknote">Chosen on this device from the date. The same goal lasts the week, then a new one starts. Missing a week does not take coins, XP, or yo-yos. Clearing it pays ${Y.WEEKLY_COINS} coins. There is no online board.</p>`;
-    }
-
-    function drawRewardArt(item) {
-      const cv = $("rewardCanvas");
-      if (!cv || !item) return;
-      const g = cv.getContext("2d");
-      g.setTransform(1, 0, 0, 1, 0, 0);
-      g.clearRect(0, 0, cv.width, cv.height);
-      if (item.kind !== "cosmetic") {
-        g.fillStyle = "#ffe7a8";
-        g.font = "700 42px \"Lilita One\", Outfit, sans-serif";
-        g.textAlign = "center";
-        g.textBaseline = "middle";
-        g.fillText("+" + (item.coins || Y.DUPLICATE_COINS), cv.width / 2, cv.height / 2);
-        return;
-      }
-      const model = Y.visualModel({ id: "pocket", size: 1, look: {}, finish: "gloss", cap: "stripes", rimStyle: "single" }, item.cosmeticId);
-      try { if (drawYoyo3q && model) drawYoyo3q(g, cv.width * 0.42, cv.height * 0.56, Math.min(cv.width, cv.height) * 0.3, model, (S.time || 0) * 0.9, S.time || 0); } catch (e) {}
-    }
-
-    function currentReveal() { return (store.d.revealQueue && store.d.revealQueue[0]) || null; }
-
-    function openReveal() {
-      const item = currentReveal();
-      const rootEl = $("reward");
-      const card = $("rewardCard");
-      if (!item || !rootEl || !card) return;
-      const reduced = isReduced();
-      const c = item.kind === "cosmetic" ? Y.cosmetic(item.cosmeticId) : null;
-      $("rewardKicker").textContent = "Level " + item.level;
-      $("rewardRarity").textContent = c ? c.rarity : "Duplicate";
-      $("rewardRarity").className = "reward-rarity rarity " + (c ? c.rarity : "common");
-      $("rewardName").textContent = c ? c.name : "+" + (item.coins || Y.DUPLICATE_COINS) + " coins";
-      $("rewardBlurb").textContent = c ? c.blurb + " Wear it from the collection. The throw stays the yo-yo you picked." : "You already own every look. The booth paid coins instead. Your score was not changed.";
-      rootEl.hidden = false;
-      const chest = $("chestBtn");
-      if (chest) chest.hidden = true;
-      const btn = $("rewardOk");
-      const more = store.d.revealQueue.length > 1;
-      if (reduced) {
-        card.dataset.stage = "4";
-        if (btn) btn.textContent = more ? "Next" : "Nice";
-        try { sfx.unlock(); sfx.fanfare(); } catch (e) {}
-        return;
-      }
-      card.dataset.stage = "0";
-      if (btn) { btn.textContent = "Skip"; btn.hidden = true; }
-      let i = 0;
-      clearTimeout(revealTimer);
-      const stages = ["0", "1", "2", "3", "4"];
-      const step = () => {
-        if (rootEl.hidden) return;
-        card.dataset.stage = stages[i];
-        if (i === 2) { try { sfx.coin(); } catch (e) {} }
-        if (i === 4) {
-          if (btn) { btn.hidden = false; btn.textContent = more ? "Next" : "Wear it"; }
-          try { sfx.fanfare(); buzz([12, 30, 18]); } catch (e) {}
-          return;
-        }
-        i += 1;
-        revealTimer = setTimeout(step, 120);
-      };
-      setTimeout(() => { if (btn && !rootEl.hidden) btn.hidden = false; }, 400);
-      step();
-    }
-
-    function dismissReveal() {
-      clearTimeout(revealTimer);
-      if (store.d.revealQueue && store.d.revealQueue.length) store.d.revealQueue.shift();
-      store.save();
-      if (store.d.revealQueue && store.d.revealQueue.length) openReveal();
-      else {
-        const rootEl = $("reward");
-        if (rootEl) rootEl.hidden = true;
-        api.renderProgress(false);
-      }
-    }
-
-    function onRewardClick() {
-      if (rewardLock) return;
-      const card = $("rewardCard");
-      const reduced = isReduced();
-      if (!reduced && card && card.dataset.stage !== "4") {
-        clearTimeout(revealTimer);
-        card.dataset.stage = "4";
-        const more = store.d.revealQueue.length > 1;
-        $("rewardOk").textContent = more ? "Next" : "Nice";
-        try { sfx.fanfare(); } catch (e) {}
-        return;
-      }
-      rewardLock = true;
-      dismissReveal();
-      setTimeout(() => { rewardLock = false; }, 220);
-    }
-
-    function bootCopy() {
-      const info = store.streakInfo;
-      if (!info) return;
-      if (info.changed && info.count > 1 && !info.missed) note("Day " + info.count + " streak.");
-      else if (info.missed) note("Welcome back.");
-    }
-
-    function progressHook(info) {
-      api.renderProgress(false);
-      renderCollection();
-      if (info && info.boot && !isPlaying() && currentReveal()) setTimeout(openReveal, 450);
-    }
-
-    setProgressHook(progressHook);
-
-    const colBtn = $("colBtn");
-    const achBtn = $("achBtn");
-    const statsBtn = $("statsBtn");
-    const weeklyBtn = $("weeklyBtn");
-    if (colBtn) colBtn.onclick = () => { renderCollection(); openSheet("colSheet"); };
-    if (achBtn) achBtn.onclick = () => { renderAchievements(); openSheet("achSheet"); };
-    if (statsBtn) statsBtn.onclick = () => { renderStats(); openSheet("statsSheet"); };
-    if (weeklyBtn) weeklyBtn.onclick = () => { renderWeek(); openSheet("weekSheet"); };
-    const grid = $("colGrid");
-    if (grid) grid.addEventListener("click", (e) => {
-      const btn = e.target.closest(".colcard");
-      if (!btn || btn.disabled) return;
-      previewTouched = true;
-      previewId = btn.dataset.id;
-      const have = (store.d.ownedCosmetics || []).includes(previewId);
-      if (have) {
-        Y.equipCosmetic(store.d, store.d.cosmetic === previewId ? "" : previewId);
-        store.save();
-        api.renderProgress(false);
-        try { sfx.unlock(); sfx.tug(); buzz(8); } catch (err) {}
-      }
-      renderCollection();
-    });
-    const clearBtn = $("colClear");
-    if (clearBtn) clearBtn.onclick = () => {
-      Y.equipCosmetic(store.d, "");
-      store.save();
-      api.renderProgress(false);
-      renderCollection();
-    };
-    const rewardOk = $("rewardOk");
-    if (rewardOk) rewardOk.onclick = onRewardClick;
-    const chestBtn = $("chestBtn");
-    if (chestBtn) chestBtn.onclick = (e) => { e.currentTarget.blur(); openReveal(); };
-
-    globalThis.__yoRewardOpen = () => {
-      const el = $("reward");
-      return !!(el && !el.hidden);
-    };
-    globalThis.__yoRewardFrame = () => { if (globalThis.__yoRewardOpen()) drawRewardArt(currentReveal()); };
-    globalThis.__yoCollectionFrame = () => {
-      const sheet = $("colSheet");
-      if (sheet && sheet.classList.contains("on")) drawPreview();
-    };
-    globalThis.__yoOpenReveal = openReveal;
-
-    renderCollection();
-    renderAchievements();
-    renderStats();
-    renderWeek();
-    bootCopy();
-    api.renderProgress(false);
-    if (!isPlaying() && currentReveal()) setTimeout(openReveal, 450);
-  }
-
-  return { install };
-});
-
-</script>
+<script src="vendor/pixi.min.js"></script>
+<script src="src/pixi-view.js"></script>
+<script src="src/saucer-grid.js"></script>
+<script src="src/scoring.js"></script>
+<script src="src/progression.js"></script>
+<script src="src/extra-ui.js"></script>
 <script>
 "use strict";
 (() => {
@@ -2126,7 +826,11 @@ function burst(S, x, y, n, kind) {
     S.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40 * S.scale, life, max: life, size: kind === "spark" ? 1.4 + Math.random() * 2 : 2 + Math.random() * 3, kind });
   }
 }
-function floater(S, text) { S.floaters.push({ x: S.yo.x, y: S.yo.y - S.R - 12, text, life: 1.2, max: 1.2 }); if (S.floaters.length > 6) S.floaters.shift(); }
+function floater(S, text, at) {
+  if (S.floaters.some((f) => f.text === text && f.life > f.max - 0.08)) return;
+  const item = at ? { x: at.x, y: at.y, screen: true, text, life: 0.9, max: 0.9 } : { x: S.yo.x, y: S.yo.y - S.R - 36, screen: false, text, life: 0.9, max: 0.9 };
+  S.floaters.push(item); if (S.floaters.length > 4) S.floaters.shift();
+}
 function bumpBest(S) { if (S.score > S.best) S.best = S.score; }
 function award(S, id) {
   const t = TRICK[id]; if (S.attract || !t || S.scored.has(id)) return;
@@ -2164,7 +868,7 @@ function doThrow(S, power) {
   S.yo.vx = clamp(nx * speed * 0.72, -640 * S.scale, 640 * S.scale) / mass;
   S.yo.vy = ny * speed;
   S.events.push({ type: "throw", power, spins: count, aimX: ax, aimY: ay });
-  floater(S, count + " spins");
+  floater(S, count + " spins", { x: Math.min(110, S.w * 0.28), y: Math.max(156, S.h * 0.2) });
   if (!S.reduced) S.shake = Math.max(S.shake, 2 + power * 3);
 }
 function startReturn(S, manual) {
@@ -2329,7 +1033,11 @@ function stepFx(S, dt) {
 }
 
 /* ================= App state ================= */
-const app = $("app"), cv = $("stage"), ctx = cv.getContext("2d", { alpha: false }), fxCv = $("fx");
+const app = $("app"), cv = $("stage"), fxCv = $("fx");
+const rendererQuery = new URLSearchParams(location.search).get("renderer");
+let usePixi = rendererQuery !== "canvas" && typeof PIXI !== "undefined" && typeof YoPixi !== "undefined";
+let keyThrows = 0;
+let ctx = usePixi ? null : cv.getContext("2d", { alpha: false });
 const S = newSim(); S.best = store.d.best; applyYoyo(S, store.d.selected);
 const fine = matchMedia("(pointer: fine)").matches, coarse = matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
 const inp = { x: 0, y: 0, touching: false, keys: new Set() };
@@ -2371,8 +1079,10 @@ function resize() {
   const r = app.getBoundingClientRect(); W = Math.max(1, r.width); H = Math.max(1, r.height);
   const cs = getComputedStyle(probe); insets = { top: parseFloat(cs.paddingTop) || 0, right: parseFloat(cs.paddingRight) || 0, bottom: parseFloat(cs.paddingBottom) || 0, left: parseFloat(cs.paddingLeft) || 0 };
   DPR = Math.min(window.devicePixelRatio || 1, 3); if (W * H * DPR * DPR > 4.5e6) DPR = Math.sqrt(4.5e6 / (W * H));
-  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-  fxCv.width = cv.width; fxCv.height = cv.height;
+  if (!(usePixi && window.YoPixi && YoPixi.ready())) {
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  } else YoPixi.resize(W, H);
+  fxCv.width = Math.round(W * DPR); fxCv.height = Math.round(H * DPR);
   const wasAttract = S.attract, ox = S.hand.x / (S.w || 1);
   layoutSim(S, W, H, insets);
   if (!wasAttract) { S.hand.x = ox * W; inp.x = S.hand.x; }
@@ -2991,8 +1701,12 @@ function drawYoyoDepth(g, q, R, m, ang, omega, hot, t) { // seen from above: fac
   if (dim > .01 && yoView.e < .5) { g.globalAlpha = dim; g.fillStyle = "#000"; g.beginPath(); g.arc(q.x, q.y, R * 1.02, 0, TAU); g.fill(); g.globalAlpha = 1; }
 }
 function render(alpha) {
+  if (usePixi && window.YoPixi && YoPixi.ready()) { renderPixi(alpha); return; }
+  if (!ctx) return;
+  const armCv = $("arm");
+  if (armCv && armCv.width) { const ag = armCv.getContext("2d"); ag.setTransform(1, 0, 0, 1, 0, 0); ag.clearRect(0, 0, armCv.width, armCv.height); }
   const g = ctx; g.setTransform(1, 0, 0, 1, 0, 0);
-  const pz = 1 + S.punch, sx = S.shake ? (Math.random() - .5) * S.shake * 2 : 0, sy = S.shake ? (Math.random() - .5) * S.shake * 2 : 0;
+  const pz = 1 + S.punch, sx = S.shake ? Math.sin(S.time * 17) * S.shake : 0, sy = S.shake ? Math.cos(S.time * 13) * S.shake : 0;
   const ox = W / 2, oy = H * .45;
   const z = cam.z * pz, mg = 30 / z, view = { x0: cam.x - (P.Ax + 20) / z - mg, x1: cam.x + (W - P.Ax + 20) / z + mg, y0: cam.y - (P.Acy + 20) / z - mg, y1: cam.y + (H - P.Acy + 20) / z + mg };
   const t = S.time;
@@ -3037,10 +1751,6 @@ function render(alpha) {
   if (nearer) { drawString(g, pX, pY, q.x, q.y, Math.min(30, slack), S.tension, S.tangled, t, S.R * .35); drawYo(); }
   drawShards(g);
   drawParticles(g, projParticles(S.particles));
-  g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
-  for (const f of S.floaters) { const fq = proj(f.x, f.y), a = clamp(f.life / .4, 0, 1), sc = (1 + Math.max(0, f.life - f.max + .15) * 3) / Math.max(1, cam.z * .8);
-    g.font = `${Math.round(18 + 8 * S.scale)}px "Lilita One", Outfit, sans-serif`;
-    g.globalAlpha = a; g.save(); g.translate(fq.x, fq.y - (S.R * P.VS * fq.s + 18 / cam.z) - (f.max - f.life) * 30 / cam.z); g.scale(sc, sc); g.lineJoin = "round"; g.miterLimit = 2; g.lineWidth = 6; g.strokeStyle = "rgba(24,10,2,.9)"; g.strokeText(f.text, 0, 0); g.fillStyle = TH.css.hi; g.fillText(f.text, 0, 0); g.restore(); }
   g.globalAlpha = 1;
   // screen-space: dust in the air + lens vignette (not affected by the camera)
   g.setTransform(DPR, 0, 0, DPR, 0, 0); drawLive(g, t); drawVignette(g);
@@ -3070,8 +1780,6 @@ function drawVenue(g, t) {
     const sky = g.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, "#07131c"); sky.addColorStop(.35, "#12324a"); sky.addColorStop(.62, "#1c6e86"); sky.addColorStop(1, "#0c3d45");
     g.fillStyle = sky; g.fillRect(0, 0, W, H);
-    g.fillStyle = "#f4e2a8"; g.beginPath(); g.arc(W * .78, H * .16, Math.min(W, H) * .045, 0, TAU); g.fill();
-    g.fillStyle = "rgba(244,226,168,.18)"; g.beginPath(); g.ellipse(W * .78, H * .16, Math.min(W, H) * .09, Math.min(W, H) * .09, 0, 0, TAU); g.fill();
     const moon = g.createLinearGradient(W * .7, H * .42, W * .7, H * .95);
     moon.addColorStop(0, "rgba(180,220,210,0)"); moon.addColorStop(.35, "rgba(210,235,220,.18)"); moon.addColorStop(1, "rgba(8,30,28,.2)");
     g.fillStyle = moon; g.fillRect(0, H * .4, W, H * .6);
@@ -3100,10 +1808,10 @@ function drawVenue(g, t) {
     const sky = g.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, "#140818"); sky.addColorStop(.28, "#3a1248"); sky.addColorStop(.55, "#1a2748"); sky.addColorStop(1, "#120c09");
     g.fillStyle = sky; g.fillRect(0, 0, W, H);
-    g.fillStyle = "#f6e2a4"; g.beginPath(); g.arc(W * .82, H * .12, Math.min(36, W * .05), 0, TAU); g.fill();
-    for (let i = 0; i < 18; i++) {
-      const x = (i * 97 + 20) % W, y = (i * 53) % (H * .4);
-      g.globalAlpha = 0.35 + (i % 4) * 0.12; g.fillStyle = "#fff"; g.fillRect(x, y, 2, 2);
+    g.globalAlpha = 1;
+    for (let i = 0; i < 10; i++) {
+      const x = (i * 97 + 40) % W, y = H * (0.22 + (i % 5) * 0.06);
+      g.globalAlpha = 0.25; g.fillStyle = "#fff4dc"; g.fillRect(x, y, 2, 2);
     }
     g.globalAlpha = 1;
     const deck = g.createLinearGradient(0, H * .72, 0, H);
@@ -3111,28 +1819,14 @@ function drawVenue(g, t) {
     g.fillStyle = deck; g.fillRect(0, H * .72, W, H * .28);
     g.strokeStyle = "rgba(90,50,24,.65)"; g.lineWidth = 2;
     for (let x = 0; x < W; x += 28) { g.beginPath(); g.moveTo(x, H * .72); g.lineTo(x + 10, H); g.stroke(); }
-    const booths = [["#c23b4a", .08], ["#e2b14a", .28], ["#3e7d4f", .5], ["#3a6ea5", .7], ["#8a3e8a", .88]];
+    const booths = [["#6a2430", .08], ["#8a6a28", .28], ["#245c34", .5], ["#243e62", .7], ["#5a245c", .88]];
+    g.globalAlpha = 0.45;
     for (const b of booths) {
       const x = W * b[1];
-      g.fillStyle = b[0]; g.fillRect(x, H * .58, W * .12, H * .16);
-      g.fillStyle = "#f4e2b0"; g.fillRect(x + 6, H * .62, W * .05, H * .05);
-      g.fillStyle = "#2a140c"; g.beginPath(); g.moveTo(x - 6, H * .58); g.lineTo(x + W * .06, H * .5); g.lineTo(x + W * .14, H * .58); g.fill();
+      g.fillStyle = b[0]; g.fillRect(x, H * .7, W * .1, H * .08);
+      g.fillStyle = "#2a140c"; g.beginPath(); g.moveTo(x - 4, H * .7); g.lineTo(x + W * .05, H * .66); g.lineTo(x + W * .12, H * .7); g.fill();
     }
-    g.strokeStyle = "#f2c14e"; g.lineWidth = 2;
-    g.beginPath();
-    for (let i = 0; i <= 16; i++) {
-      const x = (W / 16) * i;
-      const y = H * .2 + Math.sin(i * 0.7) * 10;
-      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
-    }
-    g.stroke();
-    for (let i = 0; i <= 16; i++) {
-      const x = (W / 16) * i, y = H * .2 + Math.sin(i * 0.7) * 10;
-      const glow = g.createRadialGradient(x, y, 0, x, y, 10);
-      glow.addColorStop(0, i % 2 ? "rgba(255,220,120,.95)" : "rgba(255,120,90,.9)");
-      glow.addColorStop(1, "rgba(255,180,60,0)");
-      g.fillStyle = glow; g.beginPath(); g.arc(x, y, 10, 0, TAU); g.fill();
-    }
+    g.globalAlpha = 1;
   }
   g.restore();
 }
@@ -3315,7 +2009,7 @@ function smashPlate(i) {
   if (sessionMode === "fish") carn.hooked = (carn.hooked || 0) + 1;
   S.events.push({ type: "plate", kind: p.boss ? "boss" : (sessionMode === "fish" ? "fish" : p.kind), points: pts, chain: carn.chain, mult, grade, bossName: p.bossName || "", xp: p._xp || 0, coins: p._coins || 0, row: p.row | 0 });
   if (!p.boss) noteLine(p);
-  floater(S, (p.kind === "gold" ? "GOLD +" : "+") + pts + (carn.chain > 1 ? "  ×" + (mult % 1 ? mult.toFixed(1) : mult) : ""));
+  floater(S, (p.kind === "gold" ? "GOLD +" : "+") + pts + (carn.chain > 1 ? "  ×" + (mult % 1 ? mult.toFixed(1) : mult) : ""), p.sx != null ? { x: p.sx, y: Math.max(150, p.sy - (p.sr || 18) - 16) } : null);
   burst(S, S.yo.x, S.yo.y, S.reduced ? 4 : (grade === "perfect" ? 20 : grade === "great" ? 12 : 6), "spark");
   const cols = plateCols(p.kind), n = S.reduced ? 8 : 18;
   for (let k = 0; k < n; k++) { const a = Math.random() * TAU, sp = 90 + Math.random() * 260;
@@ -3350,9 +2044,10 @@ function plateCols(kind) {
   return ["#f4ead6", "#c8352b", "#f4ead6", "#e7b15a"];
 }
 let plateSprites = null, plateFor = "";
-function plateSprite(kind) {
+function plateSprite(kind, ring) {
+  const key = kind + ":" + (ring | 0);
   if (plateFor !== TH.kind) { plateSprites = {}; plateFor = TH.kind; }
-  if (plateSprites[kind]) return plateSprites[kind];
+  if (plateSprites[key]) return plateSprites[key];
   const N = 192, c = document.createElement("canvas"); c.width = c.height = N; const g = c.getContext("2d"); g.translate(N / 2, N / 2); const R = N * .44;
   if (kind === "fish") {
     g.fillStyle = "rgba(0,0,0,.28)"; g.beginPath(); g.ellipse(6, 10, R * .9, R * .42, 0, 0, TAU); g.fill();
@@ -3362,49 +2057,103 @@ function plateSprite(kind) {
     g.fillStyle = "#ffe8a3"; g.beginPath(); g.ellipse(-R * .28, -R * .02, R * .16, R * .1, 0, 0, TAU); g.fill();
     g.fillStyle = "#111"; g.beginPath(); g.arc(-R * .42, -R * .06, R * .07, 0, TAU); g.fill();
     g.fillStyle = "#fff"; g.beginPath(); g.arc(-R * .44, -R * .08, R * .025, 0, TAU); g.fill();
-    return (plateSprites[kind] = c);
+    return (plateSprites[key] = c);
   }
-  const neon = TH.kind === "neon" && kind !== "gold", gold = kind === "gold";
-  // cast shadow on the floor (light from up-left)
-  g.fillStyle = "rgba(0,0,0,.35)"; g.beginPath(); g.arc(R * .08, R * .1, R * 1.02, 0, TAU); g.fill();
-  // plate body with a raised rim
-  let rg = g.createRadialGradient(-R * .3, -R * .35, R * .1, 0, 0, R);
-  if (gold) { rg.addColorStop(0, "#fff3b0"); rg.addColorStop(.6, "#f2be3c"); rg.addColorStop(1, "#a86f12"); }
-  else if (neon) { rg.addColorStop(0, "#2a1650"); rg.addColorStop(1, "#0c0620"); }
-  else { rg.addColorStop(0, "#ffffff"); rg.addColorStop(.7, TH.kind === "park" ? "#eef0ea" : "#f1e6cf"); rg.addColorStop(1, TH.kind === "park" ? "#b9bdb4" : "#c9b48a"); }
-  g.fillStyle = rg; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
-  g.lineWidth = R * .07; g.strokeStyle = gold ? "#fff0a0" : neon ? "#3ef0ff" : TH.kind === "park" ? "#3a6fd0" : "#e7b15a"; if (neon) { g.shadowColor = "#3ef0ff"; g.shadowBlur = R * .25; }
-  g.beginPath(); g.arc(0, 0, R * .9, 0, TAU); g.stroke(); g.shadowBlur = 0;
-  // target rings
-  const ringA = gold ? "#c8861a" : neon ? "#ff3fd1" : "#d23a2a", ringB = gold ? "#fff3b0" : neon ? "#160c30" : (TH.kind === "park" ? "#fbfbf6" : "#f6ecd8");
-  [[.72, ringA], [.56, ringB], [.4, ringA], [.24, ringB], [.11, gold ? "#fff" : neon ? "#e6fdff" : ringA]].forEach(([k, col]) => { g.fillStyle = col; if (neon && col === ringA) { g.shadowColor = ringA; g.shadowBlur = R * .2; } g.beginPath(); g.arc(0, 0, R * k, 0, TAU); g.fill(); g.shadowBlur = 0; });
-  // glaze highlight
-  g.globalCompositeOperation = "lighter"; rg = g.createRadialGradient(-R * .4, -R * .45, 0, -R * .4, -R * .45, R * .7); rg.addColorStop(0, "rgba(255,255,255,.35)"); rg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = rg; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill(); g.globalCompositeOperation = "source-over";
-  return (plateSprites[kind] = c);
+  const styles = [
+    { body: "#fff4dc", rim: "#e7b15a", lip: "#c9842a", well: "#f3e2c0", mark: "#e8423f" },
+    { body: "#1f8f86", rim: "#e7fff8", lip: "#0e4e49", well: "#146b66", mark: "#fff4dc" },
+    { body: "#e8423f", rim: "#ffc94a", lip: "#8c1c1a", well: "#ffd7c8", mark: "#ffc94a" },
+    { body: "#e2a12a", rim: "#fff4dc", lip: "#8a5a10", well: "#f6d78a", mark: "#fff4dc", bulbs: true },
+  ];
+  const gold = kind === "gold";
+  const st = gold ? { body: "#ffc94a", rim: "#fff4dc", lip: "#a86f12", well: "#fff6d0", mark: "#e8423f", bulbs: true } : styles[Math.max(0, Math.min(3, ring | 0))];
+  g.fillStyle = "#14122b"; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+  let rg = g.createRadialGradient(-R * .35, -R * .4, R * .1, 0, 0, R);
+  rg.addColorStop(0, "#fff"); rg.addColorStop(.18, st.body); rg.addColorStop(1, st.lip);
+  g.fillStyle = rg; g.beginPath(); g.arc(0, 0, R * .92, 0, TAU); g.fill();
+  g.lineWidth = R * .11; g.strokeStyle = st.rim; g.beginPath(); g.arc(0, 0, R * .78, 0, TAU); g.stroke();
+  g.lineWidth = R * .035; g.strokeStyle = st.lip; g.beginPath(); g.arc(0, 0, R * .62, 0, TAU); g.stroke();
+  rg = g.createRadialGradient(-R * .1, -R * .12, R * .02, 0, 0, R * .42);
+  rg.addColorStop(0, st.well); rg.addColorStop(1, st.lip); g.fillStyle = rg; g.beginPath(); g.arc(0, 0, R * .4, 0, TAU); g.fill();
+  g.fillStyle = st.mark; g.beginPath(); g.arc(0, 0, R * .12, 0, TAU); g.fill();
+  if (st.bulbs) { for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; g.fillStyle = i % 2 ? "#fff4dc" : "#ffc94a"; g.beginPath(); g.arc(Math.cos(a) * R * .78, Math.sin(a) * R * .78, R * .07, 0, TAU); g.fill(); } }
+  g.globalCompositeOperation = "lighter"; rg = g.createRadialGradient(-R * .35, -R * .42, 0, -R * .2, -R * .3, R * .55); rg.addColorStop(0, "rgba(255,255,255,.55)"); rg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = rg; g.beginPath(); g.arc(0, 0, R * .92, 0, TAU); g.fill(); g.globalCompositeOperation = "source-over";
+  return (plateSprites[key] = c);
+}
+const RING_SCALE = [0.62, 0.75, 0.88, 1];
+function paintActors(g, alpha) {
+  const pz = 1 + S.punch, ox = W / 2, oy = H * .45;
+  g.setTransform(DPR * pz, 0, 0, DPR * pz, DPR * (ox - ox * pz), DPR * (oy - oy * pz));
+  g.translate(P.Ax, P.Acy); g.scale(cam.z, cam.z); g.translate(-cam.x, -cam.y);
+  const hxW = lerp(S.hand.px, S.hand.x, alpha), hyW = lerp(S.hand.py, S.hand.y, alpha);
+  const yxW = lerp(S.yo.px, S.yo.x, alpha), yyW = lerp(S.yo.py, S.yo.y, alpha);
+  const ang = lerp(S.pAngle, S.angle, alpha), m = modelVis(), hot = S.attract ? .35 : clamp(S.spin / 14, 0, 1);
+  const hq = proj(hxW, hyW), held = S.phase === "held" && playing;
+  const pX = hq.x + (playing ? rig.ox : 0), pY = hq.y + (playing ? rig.oy : 0);
+  if (playing) solveArm(pX, pY, hq.s);
+  let q = proj(yxW, yyW);
+  if (held) { const hp = handPoint(H_HELD.x, H_HELD.y); q = { x: hp.x, y: hp.y, s: 1, z: 1, u: 0 }; }
+  const R = S.R * P.VS * q.s;
+  const drawYo = () => drawYoyoDepth(g, q, R, m, ang, S.reduced ? 0 : S.rollDir * S.spin * .5, hot, S.time);
+  const nearer = held || (q.u < -.02) || (rig.rot < .5 && (S.phase === "out" || S.phase === "return") && Math.abs(yyW - hyW) < S.Lmin * 2.2);
+  if (!nearer) drawYo();
+  if (playing) drawArm(g);
+  if (nearer) drawYo();
+}
+function renderPixi(alpha) {
+  const hxW = lerp(S.hand.px, S.hand.x, alpha), hyW = lerp(S.hand.py, S.hand.y, alpha);
+  const yxW = lerp(S.yo.px, S.yo.x, alpha), yyW = lerp(S.yo.py, S.yo.y, alpha);
+  const hq = proj(hxW, hyW);
+  let q = proj(yxW, yyW);
+  const held = S.phase === "held" && playing;
+  const pX = hq.x + (playing ? rig.ox : 0), pY = hq.y + (playing ? rig.oy : 0);
+  if (held) { const hp = handPoint(H_HELD.x, H_HELD.y); q = { x: hp.x, y: hp.y, s: 1 }; }
+  const hs = sceneToScreen(pX, pY), ys = sceneToScreen(q.x, q.y);
+  const mark = aimMark();
+  const plates = carn.plates.map(function (p) {
+    return { x: p.sx != null ? p.sx : p.u, y: p.sy != null ? p.sy : p.v, r: p.sr || p.r || 22, row: p.row | 0, rot: p.rot || 0, gold: p.kind === "gold" || !!p.boss, fish: sessionMode === "fish" && !p.boss };
+  }).sort(function (a, b) { return a.y - b.y; });
+  YoPixi.sync({
+    w: W, h: H, t: S.time, venue: playing && !S.attract && (sessionMode === "fish" || (store.d.carnival && sessionMode !== "free")),
+    fish: sessionMode === "fish", plates: plates, reachRing: mark.ring, phase: S.phase,
+    showString: playing || S.attract, showYo: false, tangled: !!S.tangled,
+    yo: ys, hand: hs, yoR: S.R * P.VS * (q.s || 1), hot: S.attract ? 0.35 : clamp(S.spin / 14, 0, 1),
+    spin: S.spin, shakeX: S.shake ? Math.sin(S.time * 17) * S.shake : 0, shakeY: S.shake ? Math.cos(S.time * 13) * S.shake : 0,
+    particles: S.particles,
+  });
+  const arm = $("arm");
+  if (arm) {
+    if (arm.width !== Math.round(W * DPR)) { arm.width = Math.round(W * DPR); arm.height = Math.round(H * DPR); }
+    const ag = arm.getContext("2d");
+    ag.setTransform(1, 0, 0, 1, 0, 0); ag.clearRect(0, 0, arm.width, arm.height);
+    paintActors(ag, alpha);
+  }
 }
 function drawPlates(g, t) {
   if (!carn.plates.length && !carn.bursts.length) return;
   const sf = P.sf;
-  if (carnOn() && YoSaucers.playBand) {
-    const band = YoSaucers.playBand(S.h);
-    const rows = store.d.bossGate ? 1 : YoSaucers.openRows(store.d.level | 0 || 1);
-    g.save();
-    for (let i = 0; i < rows; i++) {
-      const y = band.top + (band.bot - band.top) * [0.03, 0.32, 0.60, 0.88][i];
-      g.beginPath(); g.ellipse(S.w / 2, y, S.w * 0.42, Math.max(10, (band.bot - band.top) * 0.045), 0, 0, TAU);
-      g.strokeStyle = "rgba(255,214,120," + (0.18 + i * 0.05) + ")"; g.lineWidth = 2; g.stroke();
-    }
-    g.restore();
-  }
+  const reach = (playing && S.phase === "sleep") ? aimMark().ring : -1;
   for (const p of carn.plates.slice().sort((a, b) => (a.sy || 0) - (b.sy || 0))) {
     const age = carn.t - p.born, pop = clamp(age / .35, 0, 1), out = clamp((p.life + .5 - age) / .5, 0, 1), sc = (pop < 1 ? 1 - Math.pow(1 - pop, 3) * 1 + Math.sin(pop * Math.PI) * .12 : 1) * out;
     if (sc <= .01) continue;
     const onScreen = p.sx != null;
     const q = onScreen ? { x: p.sx, y: p.sy, s: 1 } : (p.worldY != null ? proj(p.u, p.worldY) : fproj(p.u, p.v));
     const depth = onScreen ? 1 : (p.worldY != null ? q.s : sf);
-    const r = (onScreen ? (p.sr || p.r) : p.r * depth) * sc, img = plateSprite(sessionMode === "fish" ? "fish" : p.kind), size = r / .44;
-    g.save(); g.translate(q.x, q.y); g.rotate(p.rot + (p.moving ? Math.sin(t * 3 + p.ph) * .2 : 0)); g.drawImage(img, -size, -size, size * 2, size * 2); g.restore();
-    if (p.kind === "gold" && !S.reduced) { g.globalCompositeOperation = "lighter"; for (let k = 0; k < 2; k++) { const a = t * 1.7 + k * 3.1, s2 = Math.max(0, Math.sin(t * 4 + k * 2)); if (s2 > .3) star4(g, q.x + Math.cos(a) * r * .6, q.y + Math.sin(a) * r * .6, r * .35 * s2, .9); } g.globalCompositeOperation = "source-over"; }
+    const row = Math.max(0, Math.min(3, p.row | 0));
+    const base = onScreen ? (p.sr || p.r) : p.r * depth;
+    const r = base * sc;
+    const img = plateSprite(sessionMode === "fish" ? "fish" : p.kind, row), size = r / .46;
+    const shadowA = 0.35 + row * 0.117, shadowOff = 3 + row * (7 / 3);
+    g.save();
+    g.fillStyle = "rgba(8,6,20," + shadowA.toFixed(2) + ")";
+    g.beginPath(); g.ellipse(q.x, q.y + shadowOff, r * 0.92, r * 0.42, 0, 0, TAU); g.filter = "blur(" + (2 + row) + "px)"; g.fill(); g.filter = "none";
+    if (row === 0) g.filter = "saturate(0.85) brightness(1.08)";
+    g.translate(q.x, q.y); g.rotate(p.rot + (p.moving ? Math.sin(t * 3 + p.ph) * .2 : 0)); g.drawImage(img, -size, -size, size * 2, size * 2);
+    g.filter = "none"; g.restore();
+    if (reach === row) {
+      g.save(); g.globalCompositeOperation = "lighter"; g.strokeStyle = "rgba(255,201,74,.55)"; g.lineWidth = 2;
+      g.beginPath(); g.arc(q.x, q.y, r * 0.98, 0, TAU); g.stroke(); g.restore();
+    }
     if (p.moving && !p.grid) { g.strokeStyle = rgba(TH.c.line, .3); g.lineWidth = 1.2; g.setLineDash([4, 5]); g.beginPath(); g.moveTo(fproj(p.u0 - p.amp - p.r, p.v).x, q.y); g.lineTo(fproj(p.u0 + p.amp + p.r, p.v).x, q.y); g.stroke(); g.setLineDash([]); }
     if (p.boss) {
       g.font = "800 " + Math.max(11, r * .28) + "px Outfit, sans-serif"; g.textAlign = "center"; g.lineWidth = 3; g.strokeStyle = "rgba(24,10,2,.88)"; g.strokeText(p.bossName || "Boss", q.x, q.y - r - 8); g.fillStyle = "#ffe7a8";
@@ -3418,14 +2167,6 @@ function drawPlates(g, t) {
     g.globalCompositeOperation = "lighter"; g.globalAlpha = (1 - k) * .9; g.drawImage(glowSprite, q.x - r * 1.4, q.y - r * 1.4, r * 2.8, r * 2.8);
     g.globalAlpha = 1 - k; g.strokeStyle = b.gold ? "#ffe27a" : TH.css.hi; g.lineWidth = 3 * (1 - k) + .5; g.beginPath(); g.arc(q.x, q.y, r, 0, TAU); g.stroke();
     g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; }
-  if (playing && S.phase === "sleep" && store.d.carnival) {
-    const m = aimMark();
-    g.save();
-    g.strokeStyle = "rgba(255,220,120,.9)"; g.lineWidth = 3;
-    g.beginPath(); g.arc(m.x, m.y, 16, 0, TAU); g.stroke();
-    g.fillStyle = "rgba(255,210,90,.35)"; g.beginPath(); g.arc(m.x, m.y, 7, 0, TAU); g.fill();
-    g.restore();
-  }
 }
 function drawShards(g) {
   if (!carn.shards.length) return;
@@ -3494,7 +2235,7 @@ addEventListener("keydown", (e) => {
   if (e.repeat) return;
   inp.keys.add(e.code);
   if (e.code === "Space" || e.code === "Enter") primary();
-  else if ((e.code === "ArrowUp" || e.code === "KeyW") && S.phase === "held" && !turnLocked()) { aimFromHand(); requestThrow(.9); }      // push away = throw
+  else if ((e.code === "ArrowUp" || e.code === "KeyW") && S.phase === "held" && !turnLocked()) { aimFromHand(); requestThrow(.9); keyThrows++; }      // push away = throw
   else if ((e.code === "ArrowDown" || e.code === "KeyS") && S.phase !== "held") queueTug(S);         // pull back = bind
 });
 addEventListener("keyup", (e) => inp.keys.delete(e.code));
@@ -3619,6 +2360,23 @@ function updateSound() { el.soundBtn.innerHTML = store.d.sound ? ICON.on : ICON.
 let noteT = 0, onProgressUI = () => {};
 function note(msg) { el.note.textContent = msg; el.note.classList.add("on"); clearTimeout(noteT); noteT = setTimeout(() => el.note.classList.remove("on"), 2600); }
 function warnStore() { if (warnStore.done) return; warnStore.done = true; note("Progress stays on this screen only. Storage is blocked."); }
+function syncPops() {
+  const root = $("pops"); if (!root) return;
+  const list = S.floaters || [];
+  while (root.children.length < list.length) {
+    const n = document.createElement("div"); n.className = "pop"; root.appendChild(n);
+  }
+  for (let i = 0; i < root.children.length; i++) {
+    const n = root.children[i];
+    const f = list[i];
+    if (!f) { n.hidden = true; continue; }
+    let x = f.x, y = f.y;
+    if (!f.screen) { const q = proj(f.x, f.y); const s = sceneToScreen(q.x, q.y); x = s.x; y = s.y - 28; }
+    n.hidden = false; n.textContent = f.text;
+    n.style.left = x + "px"; n.style.top = y + "px";
+    n.style.opacity = String(clamp(f.life / 0.28, 0, 1));
+  }
+}
 function showCallout(text) {
   const n = $("callout"); if (!n || !text) return;
   n.textContent = text; n.classList.remove("on"); clearTimeout(n._t);
@@ -3683,9 +2441,8 @@ function gainXP(pts) {
     setTimeout(() => toast("Boss gate", levelLine(d.level), false, true), 280);
   }
   if (up) {
-    const line = levelLine(d.level);
     const chest = reached.some((lv) => lv % 5 === 0);
-    setTimeout(() => { toast("LEVEL " + d.level, chest ? line + " · chest ready" : line, false, true); sfx.level(); buzz([14, 30, 14, 30, 30]); burst(S, S.yo.x, S.yo.y, 34, "spark"); if (!S.reduced) S.shake = Math.max(S.shake, 8); }, 420);
+    setTimeout(() => { toast("LEVEL " + d.level, chest ? "Chest ready" : "", false, true); sfx.level(); buzz([14, 30, 14, 30, 30]); burst(S, S.yo.x, S.yo.y, 34, "spark"); if (!S.reduced) S.shake = Math.max(S.shake, 8); }, 420);
   }
   const ach = YoProgress.syncAchievements(d, Date.now());
   onProgressUI({ reached, ach });
@@ -3723,13 +2480,8 @@ function updateHud() {
   const pill = $("stringPill");
   if (pill) { pill.hidden = !playing; pill.textContent = "Strings " + (S.stringsLeft == null ? YoProgress.stringCount(store.d) : S.stringsLeft); }
   const rb = $("ringBanner");
-  if (rb) {
-    rb.hidden = !playing;
-    let line = levelLine(store.d.level);
-    if (sessionMode === "fish" && carn.fishLeft != null) line += " · " + Math.max(0, Math.ceil(carn.fishLeft)) + "s";
-    else if (store.d.bossGate && carn.bossLeft != null) line += " · " + Math.max(0, Math.ceil(carn.bossLeft)) + "s";
-    rb.textContent = line;
-  }
+  if (rb) rb.hidden = true;
+  if (pill && sessionMode === "fish" && carn.fishLeft != null) pill.textContent += " · " + Math.max(0, Math.ceil(carn.fishLeft)) + "s";
   const look = store.d.cosmetic && YoProgress.cosmetic(store.d.cosmetic);
   const tag = $("lookTag");
   if (tag) { tag.hidden = !look; if (look) tag.textContent = look.name; }
@@ -3780,7 +2532,7 @@ function handleEvents() {
         store.d.plates = (store.d.plates || 0) + 1;
         store.d.stats.plates = (store.d.stats.plates || 0) + 1;
         if ((carn.chain || 0) > (store.d.stats.bestChain || 0)) store.d.stats.bestChain = carn.chain;
-        toast(YoProgress.gradeWord(e.grade), "+" + e.points + (e.chain > 1 ? "  ·  ×" + (e.mult % 1 ? e.mult.toFixed(1) : e.mult) : "") + (e.bossName ? "  ·  " + e.bossName : ""), false, e.grade === "perfect" || e.kind === "boss");
+        toast(YoProgress.gradeWord(e.grade), e.bossName || "", false, e.grade === "perfect" || e.kind === "boss");
         el.toast.classList.add("g-" + (e.grade || "good"));
         if (e.mult === 2 || e.mult === 2.5 || e.mult === 3) showCallout("×" + e.mult);
         break;
@@ -4121,13 +2873,18 @@ function tick(dt) {
     if (playing) rigUpdate(dt);
     carnUpdate(dt);
     yoViewUpdate(dt);
+    if (usePixi && window.YoPixi && YoPixi.ready()) {
+      const hq = proj(S.hand.x, S.hand.y), yq = proj(S.yo.x, S.yo.y);
+      const hs = sceneToScreen(hq.x, hq.y), ys = sceneToScreen(yq.x, yq.y);
+      YoPixi.stepRope(dt, hs.x, hs.y, ys.x, ys.y, !!S.slack);
+    }
   } else acc = 0;
   camUpdate(dt);
   render(clamp(acc / DT, 0, 1));
   if (!playing && !menuEl.classList.contains("hidden")) { heroAng += dt * (YOYOS[viewIdx].special ? 1.1 : .7); drawHero(); if (window.__yoCollectionFrame) window.__yoCollectionFrame(); }
   if (window.__yoRewardFrame) window.__yoRewardFrame();
   stepCelebrate(dt);
-  if (playing) { handleEvents(); updateHud(); sfx.tension(S.attract ? 0 : S.tension); if (S.best > store.d.best && S.phase === "held") saveBest(); } else S.events.length = 0;
+  if (playing) { handleEvents(); updateHud(); syncPops(); sfx.tension(S.attract ? 0 : S.tension); if (S.best > store.d.best && S.phase === "held") saveBest(); } else { S.events.length = 0; syncPops(); }
   streakAcc += dt;
   if (streakAcc > 30) {
     streakAcc = 0;
@@ -4160,6 +2917,13 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { la
 
 applyTheme(store.d.theme, false);
 resize(); resetAttract(S); updateMode(); updateSound(); syncSettings();
+if (usePixi && window.YoPixi) {
+  YoPixi.boot(cv).then(function () { YoPixi.resize(W, H); }).catch(function () {
+    usePixi = false;
+    if (!ctx) ctx = cv.getContext("2d", { alpha: false });
+    resize();
+  });
+}
 YoExtra.install({
   $, store, S, YO, toast, note, sfx, buzz, openSheet, closeSheets, drawYoyo3q, renderProgress,
   isPlaying: () => playing, isReduced: () => S.reduced,
@@ -4195,6 +2959,10 @@ window.__yo = {
     return c.toDataURL("image/png"); },
   grantXp: (n) => { gainXP(n); return YoProgress.summary(store.d); },
   summary: () => YoProgress.summary(store.d),
+  keyThrows: () => keyThrows,
+  renderer: () => (usePixi && window.YoPixi && YoPixi.ready() ? "pixi" : "canvas"),
+  rendererReady: () => !usePixi || (window.YoPixi && YoPixi.ready()),
+  pixiStats: () => (window.YoPixi ? YoPixi.stats() : null),
 };
 })();
 </script>

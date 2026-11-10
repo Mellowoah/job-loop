@@ -130,10 +130,18 @@
   // Even columns. The far middle saucer sits just off a straight hang so a drop down the centre misses.
   const COL_REST = [0.18, 0.50, 0.82];
   const COL_AMP = [0.012, 0.01, 0.012];
+  let playFrame = null;
+  function setPlayFrame(top, bot) {
+    const t = +top, b = +bot;
+    playFrame = (b > t + 80) ? { top: t, bot: b } : null;
+  }
   function playBand(h) {
-    const top = Math.max(132, h * 0.2);
-    const bot = h - Math.max(230, h * 0.32);
-    return { top: top, bot: Math.max(top + 120, bot) };
+    if (playFrame) return playFrame;
+    const top = Math.max(96, Math.min(150, h * 0.16));
+    const chips = Math.max(150, h * 0.2);
+    const hand = Math.max(108, Math.min(156, h * 0.16));
+    const bot = h - chips - hand;
+    return { top: top, bot: Math.max(top + 150, bot) };
   }
   function screenSlot(row, col, w, h, t, level, phase) {
     const band = playBand(h);
@@ -176,7 +184,7 @@
   }
   function shelfY(row, h) {
     const band = playBand(h);
-    const yFrac = [0.1, 0.36, 0.62, 0.88][clamp(row | 0, 0, 3)];
+    const yFrac = [0.12, 0.38, 0.64, 0.9][clamp(row | 0, 0, 3)];
     return band.top + (band.bot - band.top) * yFrac;
   }
   // Far shelf is sparse and quicker. Nearer shelves are busier so a real swing is worth more.
@@ -206,10 +214,14 @@
     else { along = 0; dir = -dir0; moving = 0; }
     return { offset: dir0 * along, dir: dir, moving: moving, speed: speed * moving, cruise: speed };
   }
-  // One trap per shelf at level 1. Another every six levels, up to three.
+  // One trap per shelf until level 10. A shelf has 3 plates, so a second trap
+  // would drop plates under 70% of the occupied slots. The ratio cap holds after that too.
   function trapsPerShelf(level) {
     const lv = Math.max(1, level | 0);
-    return Math.min(3, 1 + Math.floor((lv - 1) / 6));
+    const platesPerShelf = 3;
+    const maxByRatio = Math.max(1, Math.floor((platesPerShelf * 0.3) / 0.7 + 1e-9));
+    const wanted = lv < 10 ? 1 : 2;
+    return Math.min(wanted, maxByRatio);
   }
   function trapSlots(level) {
     const rows = openRows(level);
@@ -264,7 +276,7 @@
     plateRadius: plateRadius, rowWorldY: rowWorldY, pose: pose, hitReach: hitReach, covers: covers,
     oldReachFraction: oldReachFraction, reachFraction: reachFraction,
     openRows: openRows, openCells: openCells, ringForAngle: ringForAngle,
-    screenRadius: screenRadius, screenSlot: screenSlot, playBand: playBand, hitSlop: hitSlop,
+    screenRadius: screenRadius, screenSlot: screenSlot, playBand: playBand, setPlayFrame: setPlayFrame, hitSlop: hitSlop,
     gallerySlop: gallerySlop, shelfY: shelfY, shelfMotion: shelfMotion, galleryPlate: galleryPlate, beltLoop: beltLoop,
     trapsPerShelf: trapsPerShelf, trapSlots: trapSlots, galleryTrap: galleryTrap,
     COL_REST: COL_REST,

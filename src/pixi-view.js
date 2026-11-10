@@ -27,16 +27,17 @@
   const pool = [];
   const ambient = [];
 
-  function boot(canvas) {
+  function boot(canvas, cssW, cssH) {
     app = new PIXI.Application();
+    const dpr = Math.min(global.devicePixelRatio || 1, 3);
     return app.init({
       canvas: canvas,
-      width: Math.max(2, canvas.clientWidth || 390),
-      height: Math.max(2, canvas.clientHeight || 844),
+      width: Math.max(2, cssW || canvas.clientWidth || 390),
+      height: Math.max(2, cssH || canvas.clientHeight || 844),
       antialias: true,
       background: 0x14122b,
       preference: "webgl",
-      resolution: Math.min(global.devicePixelRatio || 1, 2),
+      resolution: dpr,
       autoDensity: true,
       eventFeatures: { move: false, globalMove: false, click: false, wheel: false },
     }).then(function () {
@@ -116,9 +117,16 @@
     ready = true;
   }
 
-  function resize(w, h) {
+  function resize(w, h, resolution) {
     if (!app) return;
-    app.renderer.resize(Math.max(2, w | 0), Math.max(2, h | 0));
+    const dpr = resolution || Math.min(global.devicePixelRatio || 1, 3);
+    const cw = Math.max(2, w | 0), ch = Math.max(2, h | 0);
+    app.renderer.resize(cw, ch, dpr);
+    const canvas = app.canvas;
+    if (canvas && canvas.style) {
+      canvas.style.width = cw + "px";
+      canvas.style.height = ch + "px";
+    }
   }
 
   function considerBloom(fps) {

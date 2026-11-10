@@ -14,7 +14,9 @@
   const ropePrev = [];
   let rope = null;
   let bg = null;
+  let rails = null;
   let plates = null;
+  let trapGfx = null;
   let yo = null;
   let hand = null;
   let yoGlow = null;
@@ -65,9 +67,15 @@
     bg = new PIXI.Sprite(tex["bg-carnival.png"]);
     bg.eventMode = "none";
     app.stage.addChild(bg);
+    rails = new PIXI.Graphics();
+    rails.eventMode = "none";
+    app.stage.addChild(rails);
     plates = new PIXI.Container();
     plates.eventMode = "none";
     app.stage.addChild(plates);
+    trapGfx = new PIXI.Graphics();
+    trapGfx.eventMode = "none";
+    plates.addChild(trapGfx);
     for (let i = 0; i < ropeN; i++) {
       ropePts.push(new PIXI.Point(0, i * 8));
       ropePrev.push(new PIXI.Point(0, i * 8));
@@ -174,6 +182,56 @@
     return slot;
   }
 
+  function drawTraps(g, list, t) {
+    g.clear();
+    for (let i = 0; i < list.length; i++) {
+      const src = list[i];
+      if (!src.trap) continue;
+      const x = src.x, y = src.y, r = src.r || 22;
+      const kind = src.trap;
+      if (kind === "skull") {
+        g.circle(x, y, r * 0.92).fill({ color: 0xe8423f });
+        g.circle(x, y - r * 0.06, r * 0.55).fill({ color: 0xfff4dc });
+        g.circle(x - r * 0.2, y - r * 0.1, r * 0.12).fill({ color: 0x14122b });
+        g.circle(x + r * 0.2, y - r * 0.1, r * 0.12).fill({ color: 0x14122b });
+        g.poly([x, y + r * 0.02, x - r * 0.08, y + r * 0.16, x + r * 0.08, y + r * 0.16]).fill({ color: 0x14122b });
+        g.rect(x - r * 0.28, y + r * 0.22, r * 0.56, r * 0.2).fill({ color: 0xfff4dc });
+        g.rect(x - r * 0.04, y + r * 0.22, r * 0.08, r * 0.2).fill({ color: 0x14122b });
+      } else if (kind === "boot") {
+        g.poly([
+          x - r * 0.15, y - r * 0.7, x + r * 0.2, y - r * 0.7, x + r * 0.28, y + r * 0.15,
+          x + r * 0.7, y + r * 0.15, x + r * 0.7, y + r * 0.55, x - r * 0.35, y + r * 0.55,
+          x - r * 0.35, y + r * 0.15, x - r * 0.15, y + r * 0.05,
+        ]).fill({ color: 0x6b3a1f });
+        g.rect(x - r * 0.15, y - r * 0.55, r * 0.35, r * 0.12).fill({ color: 0xc9842a });
+      } else if (kind === "puffer") {
+        for (let k = 0; k < 10; k++) {
+          const a = k / 10 * Math.PI * 2;
+          g.poly([
+            x + Math.cos(a) * r * 0.35, y + Math.sin(a) * r * 0.35,
+            x + Math.cos(a + 0.18) * r * 0.85, y + Math.sin(a + 0.18) * r * 0.85,
+            x + Math.cos(a - 0.18) * r * 0.35, y + Math.sin(a - 0.18) * r * 0.35,
+          ]).fill({ color: 0xd6e23a });
+        }
+        g.circle(x, y, r * 0.48).fill({ color: 0xd6e23a });
+        g.circle(x - r * 0.12, y - r * 0.06, r * 0.07).fill({ color: 0x14122b });
+        g.circle(x + r * 0.2, y + r * 0.08, r * 0.08).fill({ color: 0xe8423f });
+      } else if (kind === "jelly") {
+        g.ellipse(x, y - r * 0.05, r * 0.42, r * 0.28).fill({ color: 0xc9a6ff, alpha: 0.9 });
+        g.moveTo(x, y + r * 0.1).quadraticCurveTo(x, y + r * 0.5, x - r * 0.05, y + r * 0.85).stroke({ width: Math.max(2, r * 0.08), color: 0x6c4ad4 });
+        g.moveTo(x - r * 0.22, y + r * 0.1).quadraticCurveTo(x - r * 0.35, y + r * 0.45, x - r * 0.12, y + r * 0.8).stroke({ width: Math.max(2, r * 0.08), color: 0x6c4ad4 });
+        g.moveTo(x + r * 0.22, y + r * 0.1).quadraticCurveTo(x + r * 0.35, y + r * 0.45, x + r * 0.12, y + r * 0.8).stroke({ width: Math.max(2, r * 0.08), color: 0x6c4ad4 });
+      } else {
+        g.circle(x, y + r * 0.12, r * 0.62).fill({ color: 0x1a1a1a });
+        g.circle(x - r * 0.2, y - r * 0.02, r * 0.16).fill({ color: 0x3a3a3a });
+        g.moveTo(x + r * 0.15, y - r * 0.4).quadraticCurveTo(x + r * 0.55, y - r * 0.75, x + r * 0.72, y - r * 0.98).stroke({ width: Math.max(2, r * 0.1), color: 0x6b3a1f });
+        const flick = 0.85 + 0.2 * Math.sin(t * 16 + x);
+        g.circle(x + r * 0.74, y - r * 1.02, r * 0.16 * flick).fill({ color: 0xffc94a });
+        g.circle(x + r * 0.74, y - r * 1.02, r * 0.08).fill({ color: 0xe8423f });
+      }
+    }
+  }
+
   function sync(snap) {
     if (!ready) return;
     draws = 0;
@@ -183,6 +241,25 @@
     bg.width = w;
     bg.height = h;
     bg.visible = !!snap.venue;
+    if (rails) {
+      rails.clear();
+      const shelves = snap.shelves || [];
+      if (shelves.length && !snap.fish) {
+        const yAwn = Math.max(108, shelves[0].y - shelves[0].r - 26);
+        for (let i = 0; i < 14; i++) rails.rect((w / 14) * i, yAwn, w / 14 + 1, 16).fill({ color: i % 2 ? 0xe8423f : 0xfff4dc });
+        rails.rect(0, yAwn + 16, w, 6).fill({ color: 0x6b3a1f });
+        rails.rect(0, yAwn, 8, h * 0.55).fill({ color: 0x5a2418 });
+        rails.rect(w - 8, yAwn, 8, h * 0.55).fill({ color: 0x5a2418 });
+      }
+      for (let s = 0; s < shelves.length; s++) {
+        const shelf = shelves[s];
+        if (snap.fish) rails.rect(12, shelf.y + shelf.r * 0.3, w - 24, 2).fill({ color: 0xb4e6dc, alpha: 0.35 });
+        else {
+          rails.rect(10, shelf.y + shelf.r * 0.32, w - 20, 12).fill({ color: 0x4a2414 });
+          rails.rect(10, shelf.y + shelf.r * 0.32, w - 20, 3).fill({ color: 0xc9842a });
+        }
+      }
+    }
     const list = snap.plates || [];
     for (let i = 0; i < list.length; i++) {
       const src = list[i];
@@ -202,13 +279,18 @@
       slot.shadow.width = radius * 2.1;
       slot.shadow.height = radius * 1.1;
       slot.shadow.alpha = shadowA;
-      const reach = snap.reachRing === row && snap.phase === "sleep";
-      slot.glow.visible = reach || !!src.gold;
+      const reach = !src.trap && snap.reachRing === row && snap.phase === "sleep";
+      slot.glow.visible = reach || (!!src.gold && !src.trap);
       slot.glow.position.set(src.x, src.y);
       slot.glow.width = radius * 2.15;
       slot.glow.height = radius * 2.15;
       slot.glow.alpha = reach ? 0.45 : 0;
-      slot.shadow.visible = slot.body.visible = true;
+      slot.shadow.visible = true;
+      slot.body.visible = !src.trap;
+    }
+    if (trapGfx) {
+      plates.addChild(trapGfx);
+      drawTraps(trapGfx, list, snap.t || 0);
     }
     for (let i = list.length; i < pool.length; i++) {
       pool[i].shadow.visible = pool[i].body.visible = pool[i].glow.visible = false;

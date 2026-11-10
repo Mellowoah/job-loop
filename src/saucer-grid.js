@@ -168,6 +168,95 @@
     const gap = Math.abs(0.66 - 0.04 - 0.5) * w;
     return Math.max(12, Math.min(r, gap * 0.72));
   }
+  function gallerySlop(r) {
+    return Math.max(14, Math.min(18, (r || 22) * 0.5));
+  }
+  function beltLoop(w) {
+    return Math.max(1100, w * 3.2);
+  }
+  function shelfY(row, h) {
+    const band = playBand(h);
+    const yFrac = [0.1, 0.36, 0.62, 0.88][clamp(row | 0, 0, 3)];
+    return band.top + (band.bot - band.top) * yFrac;
+  }
+  // Far shelf is sparse and quicker. Nearer shelves are busier so a real swing is worth more.
+  const HOMES = [
+    [30, 640, 1180],
+    [0, 210, 460],
+    [40, 250, 520],
+    [0, 150, 320],
+  ];
+  function shelfMotion(row, t, level) {
+    const lv = Math.max(1, level | 0);
+    const ri = clamp(row | 0, 0, 3);
+    const period = Math.max(5.2, 8.6 - Math.min(2.8, lv * 0.12));
+    const pause = 0.55;
+    const moveT = period - pause;
+    const speed = (22 + Math.min(64, (lv - 1) * 4.5)) * [0.7, 1.05, 1.2, 1.35][ri];
+    const dir0 = ri % 2 === 0 ? 1 : -1;
+    const cycle = period * 2;
+    const local = ((t % cycle) + cycle) % cycle;
+    const span = speed * moveT;
+    let along = 0;
+    let dir = dir0;
+    let moving = 1;
+    if (local < moveT) along = speed * local;
+    else if (local < period) { along = span; moving = 0; }
+    else if (local < period + moveT) { along = span - speed * (local - period); dir = -dir0; }
+    else { along = 0; dir = -dir0; moving = 0; }
+    return { offset: dir0 * along, dir: dir, moving: moving, speed: speed * moving, cruise: speed };
+  }
+  // One trap per shelf at level 1. Another every six levels, up to three.
+  function trapsPerShelf(level) {
+    const lv = Math.max(1, level | 0);
+    return Math.min(3, 1 + Math.floor((lv - 1) / 6));
+  }
+  function trapSlots(level) {
+    const rows = openRows(level);
+    const n = trapsPerShelf(level);
+    const slots = [];
+    for (let row = 0; row < rows; row++) {
+      for (let i = 0; i < n; i++) slots.push({ row: row, index: i });
+    }
+    return slots;
+  }
+  // Index 0 patrols the straight hang. Later traps sit in the gaps, clear of a whip to either edge.
+  function galleryTrap(row, index, t, level, w, h) {
+    const ri = clamp(row | 0, 0, 3);
+    const ii = Math.max(0, index | 0);
+    const lv = Math.max(1, level | 0);
+    const shelf = shelfMotion(ri, t, lv);
+    const period = Math.max(5.2, 8.6 - Math.min(2.8, lv * 0.12));
+    const maxAlong = shelf.cruise * Math.max(0.2, period - 0.55);
+    const pocket = Math.max(48, w * 0.14);
+    const scale = Math.min(1, pocket / Math.max(1, maxAlong));
+    const center = w * [0.5, 0.34, 0.42][Math.min(2, ii)];
+    const along = shelf.offset * scale;
+    const x = center + along - (shelf.offset >= 0 ? pocket * 0.5 : -pocket * 0.5);
+    const r = screenRadius(w, h, ri);
+    const y = shelfY(ri, h);
+    return {
+      x: x, y: y, r: r,
+      onScreen: x > -r * 0.2 && x < w + r * 0.2,
+      dir: shelf.dir, moving: shelf.moving, speed: shelf.cruise, loop: beltLoop(w),
+    };
+  }
+  function galleryPlate(row, col, t, level, w, h) {
+    const ri = clamp(row | 0, 0, 3);
+    const ci = clamp(col | 0, 0, 2);
+    const loop = beltLoop(w);
+    const home = HOMES[ri][ci] * (loop / 1400);
+    const shelf = shelfMotion(ri, t, level);
+    let x = home + shelf.offset;
+    x = ((x % loop) + loop) % loop;
+    const r = screenRadius(w, h, ri);
+    const y = shelfY(ri, h);
+    return {
+      x: x, y: y, r: r,
+      onScreen: x > -r * 0.2 && x < w + r * 0.2,
+      dir: shelf.dir, moving: shelf.moving, speed: shelf.cruise, loop: loop,
+    };
+  }
 
   return {
     ROWS: ROWS, COLS: COLS, ROW_FRAC: ROW_FRAC, ROW_HALF: ROW_HALF,
@@ -176,6 +265,8 @@
     oldReachFraction: oldReachFraction, reachFraction: reachFraction,
     openRows: openRows, openCells: openCells, ringForAngle: ringForAngle,
     screenRadius: screenRadius, screenSlot: screenSlot, playBand: playBand, hitSlop: hitSlop,
+    gallerySlop: gallerySlop, shelfY: shelfY, shelfMotion: shelfMotion, galleryPlate: galleryPlate, beltLoop: beltLoop,
+    trapsPerShelf: trapsPerShelf, trapSlots: trapSlots, galleryTrap: galleryTrap,
     COL_REST: COL_REST,
   };
 });

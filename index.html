@@ -754,6 +754,7 @@ const sfx = (() => {
     snap(f) { const t = clamp(f, .15, 1); tone(180 + t * 90, .07, "square", .03 + t * .03, 70); noise(.05, .04 + t * .05); },
     hit(f) { const t = clamp(f, .15, 1); if (t < .34) { noise(.04, .05); tone(160, .05, "sine", .03, 70); } else if (t < .68) { noise(.08, .1); tone(90, .1, "triangle", .06, 42); } else { noise(.14, .16); tone(58, .16, "sine", .09, 32); } },
     tangle() { noise(.12, .08); tone(90, .14, "square", .04, 50); },
+    boom() { noise(.32, .4); tone(70, .24, "sawtooth", .09, 36); setTimeout(() => noise(.18, .22), 70); },
     smash(gold, chain) { noise(.2, .22); tone(1650, .05, "triangle", .05, 900); setTimeout(() => { noise(.09, .1); tone(2400, .04, "sine", .03, 1500); }, 45);
       const base = 523 * Math.pow(1.122, Math.min(8, chain - 1)); setTimeout(() => tone(base, .1, "triangle", .045), 70);
       if (gold) [784, 988, 1319].forEach((f, i) => setTimeout(() => tone(f, .12, "triangle", .045), 120 + i * 70)); },
@@ -817,7 +818,7 @@ function startRun(S) {
 }
 function snapPrev(S) { S.hand.px = S.hand.x; S.hand.py = S.hand.y; S.yo.px = S.yo.x; S.yo.py = S.yo.y; S.pAngle = S.angle; }
 function queueThrow(S, power, side = 0, wrist = 0) { S.pendingThrow = Math.max(S.pendingThrow, clamp(power, .35, 1)); if (side) S.pendingSide = side; if (wrist) S.pendingWrist = wrist; }
-function queueTug(S) { S.pendingTug = true; }
+function queueTug(S) { if (S.stringsLeft === 0) return; S.pendingTug = true; }
 const theta = (S) => Math.atan2(S.yo.x - S.hand.x, S.yo.y - S.hand.y);
 
 function burst(S, x, y, n, kind) {
@@ -1319,6 +1320,7 @@ function rigReset() { Object.assign(rig, { ox: 0, oy: 0, vox: 0, voy: 0, bend: 0
 function rigKick(dx, dy, db) { if (S.reduced) { dx *= .3; dy *= .3; db *= .3; } rig.vox += dx; rig.voy += dy; rig.vb += db; }
 // screen-space rig: oy < 0 = fist pushed forward (away from you), oy > 0 = pulled back toward you
 function requestThrow(power, side = 0, wrist = 0, anticipate = true) {
+  if (S.stringsLeft === 0) return;
   if (S.phase !== "held" || rig.wind || S.pendingThrow) return;
   if (!anticipate || S.reduced) { queueThrow(S, power, side, wrist); return; }
   rig.wind = { t: 0, dur: .085, power, side, wrist };
@@ -1837,7 +1839,7 @@ function drawVenue(g, t) {
    gold plates are a rare bonus, some plates slide; chained smashes build a multiplier. */
 const carn = { plates: [], shards: [], bursts: [], t: 0, chain: 0, lastHit: -9, hits: 0, id: 0, forLevel: 0, queue: [], bossActive: 0 };
 function carnOn() { return !!store.d.carnival && playing && !S.attract; }
-function carnReset() { carn.plates.length = 0; carn.shards.length = 0; carn.bursts.length = 0; carn.queue.length = 0; carn.chain = 0; carn.lastHit = -9; carn.forLevel = 0; carn.hits = 0; carn.bossActive = 0; carn.bossCarry = null; carn.bossLeft = null; carn.fishLeft = null; carn.hooked = 0; carn.gateOn = 0; carn.lineHits = []; carn.lineAwarded = false; }
+function carnReset() { carn.plates.length = 0; carn.shards.length = 0; carn.bursts.length = 0; carn.queue.length = 0; carn.chain = 0; carn.lastHit = -9; carn.forLevel = 0; carn.hits = 0; carn.trapHits = 0; carn.bossActive = 0; carn.bossCarry = null; carn.bossLeft = null; carn.fishLeft = null; carn.hooked = 0; carn.gateOn = 0; carn.lineHits = []; carn.lineAwarded = false; }
 function lanesFor(n) { return n <= 2 ? [-.36, .36] : n === 3 ? [-.5, 0, .5] : [-.66, -.22, .22, .66]; }
 function makePlate(spec, lane, i, n) {
   const gold = spec.lv >= 5 && i === n - 1;
@@ -1854,6 +1856,18 @@ function goldChance() {
   const tier = Math.min(5, (store.d.upgrades && store.d.upgrades.gold) || 0);
   return 0.08 + tier * 0.02;
 }
+function makeTrap(spec, row, index) {
+  const p = makeGridPlate(spec, row, 0, 80 + row * 4 + index);
+  p.trap = true;
+  p.trapIndex = index | 0;
+  p.col = 8 + (index | 0);
+  const fish = sessionMode === "fish";
+  const kinds = fish ? ["boot", "puffer", "jelly"] : ["bomb", "skull"];
+  p.trapKind = kinds[(row + (index | 0)) % kinds.length];
+  p.kind = p.trapKind;
+  p.pts = 0;
+  return p;
+}
 function makeGridPlate(spec, row, col, slot) {
   const gold = Math.random() < goldChance();
   return { id: ++carn.id, grid: true, row: row, col: col, slot: slot, phase: slot * .85, motion: YoSaucers.motionFor(row, col), kind: gold ? "gold" : "mid", r: YoSaucers.screenRadius(S.w, S.h), pts: platePoints(spec, gold), lane: col - 1, u0: S.w / 2, u: S.w / 2, v: S.handBaseY, worldY: S.handBaseY, rot: slot * .4, born: carn.t, life: 1e9, moving: true, amp: 20, w: 1, ph: slot, armed: true, hp: 1, maxHp: 1, hitThrow: -1 };
@@ -1868,8 +1882,17 @@ function posePlate(p, spec) {
       p.r = p.sr; p.u = p.sx; p.worldY = p.sy; p.v = p.sy; p.moving = true;
       return;
     }
-    const scr = YoSaucers.screenSlot(p.row, p.col, S.w, S.h, carn.t, spec.lv, p.phase);
-    p.sx = scr.x; p.sy = scr.y; p.sr = scr.r; p.r = scr.r; p.w = YoSaucers.speedFor(spec.lv, p.slot || 0);
+    if (p.falling) return;
+    if (p.trap) {
+      const scr = YoSaucers.galleryTrap(p.row, p.trapIndex | 0, carn.t, spec.lv, S.w, S.h);
+      p.sx = scr.x; p.sy = scr.y; p.sr = scr.r; p.r = scr.r; p.onScreen = scr.onScreen;
+      p.w = scr.speed; p.dir = scr.dir; p.shelfMoving = scr.moving;
+      p.u = scr.x; p.worldY = scr.y; p.v = scr.y; p.moving = true; p.ph = p.phase;
+      return;
+    }
+    const scr = YoSaucers.galleryPlate(p.row, p.col, carn.t, spec.lv, S.w, S.h);
+    p.sx = scr.x; p.sy = scr.y; p.sr = scr.r; p.r = scr.r; p.onScreen = scr.onScreen;
+    p.w = scr.speed; p.dir = scr.dir; p.shelfMoving = scr.moving;
     p.u = scr.x; p.worldY = scr.y; p.v = scr.y; p.moving = true; p.ph = p.phase;
     return;
   }
@@ -1904,17 +1927,35 @@ function carnUpdate(dt) {
   if (!carnOn()) { carn.plates.length = 0; carn.queue.length = 0; carn.forLevel = 0; return; }
   const spec = stageSpec(store.d.level);
   const gate = store.d.bossGate | 0;
-  const gridN = gate ? 1 : YoSaucers.openCells(spec.lv).length;
+  const trapList = gate ? [] : YoSaucers.trapSlots(spec.lv);
+  const gridN = gate ? 1 : YoSaucers.openCells(spec.lv).length + trapList.length;
   if (carn.forLevel !== spec.lv || carn.gateOn !== gate || carn.plates.length + carn.queue.length !== gridN) {
     carn.bossCarry = (function () { const pl = carn.plates.find((q) => q.boss && q.hp > 0); return pl ? { level: pl.bossLevel | 0, hp: pl.hp, maxHp: pl.maxHp } : null; })();
     carn.plates.length = 0; carn.queue.length = 0; carn.forLevel = spec.lv; carn.gateOn = gate; carn.chain = 0; carn.bossActive = 0;
-    if (!gate) YoSaucers.openCells(spec.lv).forEach((c) => carn.plates.push(makeGridPlate(spec, c.row, c.col, c.slot)));
+    if (!gate) {
+      YoSaucers.openCells(spec.lv).forEach((c) => carn.plates.push(makeGridPlate(spec, c.row, c.col, c.slot)));
+      trapList.forEach((s) => carn.plates.push(makeTrap(spec, s.row, s.index)));
+    }
+  }
+  for (let i = carn.plates.length - 1; i >= 0; i--) {
+    const p = carn.plates[i];
+    if (!p.falling) continue;
+    p.fallT = (p.fallT || 0) + dt;
+    p.fallVy = (p.fallVy || 20) + 780 * dt;
+    p.sy += p.fallVy * dt;
+    p.sx += (p.fallVx || 0) * dt;
+    p.rot += (p.fallSpin || 5) * dt;
+    p.u = p.sx; p.v = p.sy; p.worldY = p.sy;
+    if (p.fallT > 0.7) {
+      carn.plates.splice(i, 1);
+      if (!p.boss) carn.queue.push({ row: p.row, col: p.col, slot: p.slot, at: carn.t + 2.2, trap: !!p.trap, trapIndex: p.trapIndex | 0 });
+    }
   }
   for (const p of carn.plates) posePlate(p, spec);
   for (let i = carn.queue.length - 1; i >= 0; i--) {
     const q = carn.queue[i];
     if (carn.t < q.at) continue;
-    carn.plates.push(makeGridPlate(spec, q.row, q.col, q.slot));
+    carn.plates.push(q.trap ? makeTrap(spec, q.row, q.trapIndex | 0) : makeGridPlate(spec, q.row, q.col, q.slot));
     carn.queue.splice(i, 1);
   }
   ensureBoss(spec);
@@ -1939,12 +1980,19 @@ function carnUpdate(dt) {
   const qYo = aimMark();
   for (let i = carn.plates.length - 1; i >= 0; i--) {
     const p = carn.plates[i];
+    if (p.falling) continue;
     if (carn.t - p.born < .35) continue;
     if (p.hitThrow === S.throws) continue;
+    if (!p.boss && p.onScreen === false) continue;
     if (!p.boss && (p.row | 0) !== qYo.ring) continue;
     const dx = Math.abs(qYo.x - (p.sx != null ? p.sx : p.u));
-    const slop = YoSaucers.hitSlop(S.w, p.sr || p.r || 22);
+    const slop = p.boss ? YoSaucers.hitSlop(S.w, p.sr || p.r || 22) : YoSaucers.gallerySlop(p.sr || p.r || 22);
     if (dx > slop) continue;
+    if (p.trap) {
+      p.hitThrow = S.throws;
+      boomTrap(i);
+      continue;
+    }
     const grade = YoProgress.gradeReach(dx, slop);
     p._grade = grade;
     if (p.boss && !bossAccepts(p, ang, grade)) {
@@ -1993,9 +2041,35 @@ function ensureBoss(spec) {
   if (carn.bossLeft == null) carn.bossLeft = 45;
   if (!resumed) S.events.push({ type: "bossIn", name: b.name, hp: p.hp, level });
 }
+function boomTrap(i) {
+  const p = carn.plates[i];
+  p.falling = true; p.fallT = 0; p.fallVy = -140; p.fallVx = (Math.random() < .5 ? -1 : 1) * 90; p.fallSpin = 12;
+  carn.chain = 0; carn.lastHit = -9; S.combo = 0;
+  carn.trapHits = (carn.trapHits || 0) + 1;
+  if (S.stringsLeft == null) S.stringsLeft = YoProgress.stringCount(store.d);
+  S.stringsLeft = Math.max(0, S.stringsLeft - 1);
+  if (!S.reduced) { S.shake = Math.max(S.shake, 16); S.punch = Math.max(S.punch, .08); }
+  floater(S, "BOOM", p.sx != null ? { x: p.sx, y: Math.max(150, p.sy - (p.sr || 18) - 18) } : null);
+  const cols = p.trapKind === "skull" ? ["#fff4dc", "#e8423f", "#14122b"] : p.trapKind === "jelly" ? ["#c9a6ff", "#6c4ad4", "#fff4dc"] : ["#ffc94a", "#e8423f", "#1a1a1a"];
+  const n = S.reduced ? 6 : 16;
+  for (let k = 0; k < n; k++) {
+    const a = Math.random() * TAU, sp = 120 + Math.random() * 280;
+    carn.shards.push({ u: p.u + Math.cos(a) * p.r * .3, v: p.v + Math.sin(a) * p.r * .3, worldY: p.worldY, h: 6, vu: Math.cos(a) * sp, vv: Math.sin(a) * sp, vh: 220 + Math.random() * 280, rot: Math.random() * TAU, vr: (Math.random() - .5) * 16, life: .8 + Math.random() * .5, max: 1.3, size: p.r * (.28 + Math.random() * .3), col: cols[k % cols.length] });
+  }
+  carn.bursts.push({ u: p.u, v: p.v, worldY: p.worldY, r: p.r * 1.2, life: .5, max: .5, gold: false });
+  const ended = S.stringsLeft <= 0;
+  if (ended) {
+    const lost = S.score | 0;
+    S.score = 0; S.spin = 0; S.phase = "dead";
+    S.events.push({ type: "trap", left: 0, ended: true, lost: lost });
+  } else S.events.push({ type: "trap", left: S.stringsLeft, ended: false });
+}
 function smashPlate(i) {
-  const p = carn.plates[i]; carn.plates.splice(i, 1);
-  if (!p.boss) carn.queue.push({ row: p.row, col: p.col, slot: p.slot, at: carn.t + .6 });
+  const p = carn.plates[i];
+  if (p.boss) carn.plates.splice(i, 1);
+  else {
+    p.falling = true; p.fallT = 0; p.fallVy = -70; p.fallVx = (Math.random() < .5 ? -1 : 1) * 36; p.fallSpin = (Math.random() < .5 ? -1 : 1) * 9;
+  }
   carn.chain = carn.t - carn.lastHit < 3.2 ? carn.chain + 1 : 1; carn.lastHit = carn.t; carn.hits++;
   const mult = YoScore.chainMult(carn.chain, (store.d && store.d.level) || 1), pts = Math.round(p.pts * mult);
   S.score += pts; bumpBest(S);
@@ -2059,6 +2133,41 @@ function plateSprite(kind, ring) {
     g.fillStyle = "#fff"; g.beginPath(); g.arc(-R * .44, -R * .08, R * .025, 0, TAU); g.fill();
     return (plateSprites[key] = c);
   }
+  if (kind === "bomb" || kind === "skull" || kind === "boot" || kind === "puffer" || kind === "jelly") {
+    if (kind === "bomb") {
+      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(0, R * .12, R * .62, 0, TAU); g.fill();
+      g.fillStyle = "#3a3a3a"; g.beginPath(); g.arc(-R * .2, -R * .02, R * .16, 0, TAU); g.fill();
+      g.strokeStyle = "#6b3a1f"; g.lineWidth = R * .1; g.lineCap = "round";
+      g.beginPath(); g.moveTo(R * .15, -R * .4); g.quadraticCurveTo(R * .55, -R * .75, R * .72, -R * .98); g.stroke();
+      g.fillStyle = "#ffc94a"; g.beginPath(); g.arc(R * .74, -R * 1.02, R * .16, 0, TAU); g.fill();
+      g.fillStyle = "#e8423f"; g.beginPath(); g.arc(R * .74, -R * 1.02, R * .08, 0, TAU); g.fill();
+    } else if (kind === "skull") {
+      g.fillStyle = "#e8423f"; g.beginPath(); g.arc(0, 0, R * .9, 0, TAU); g.fill();
+      g.fillStyle = "#fff4dc"; g.beginPath(); g.arc(0, -R * .06, R * .55, 0, TAU); g.fill();
+      g.fillStyle = "#14122b";
+      g.beginPath(); g.arc(-R * .2, -R * .1, R * .12, 0, TAU); g.fill();
+      g.beginPath(); g.arc(R * .2, -R * .1, R * .12, 0, TAU); g.fill();
+      g.beginPath(); g.moveTo(0, R * .02); g.lineTo(-R * .08, R * .16); g.lineTo(R * .08, R * .16); g.closePath(); g.fill();
+      g.fillStyle = "#fff4dc"; g.fillRect(-R * .28, R * .22, R * .56, R * .2);
+      g.fillStyle = "#14122b"; g.fillRect(-R * .04, R * .22, R * .08, R * .2);
+    } else if (kind === "boot") {
+      g.fillStyle = "#6b3a1f";
+      g.beginPath(); g.moveTo(-R * .15, -R * .7); g.lineTo(R * .2, -R * .7); g.lineTo(R * .28, R * .15); g.lineTo(R * .7, R * .15); g.lineTo(R * .7, R * .55); g.lineTo(-R * .35, R * .55); g.lineTo(-R * .35, R * .15); g.lineTo(-R * .15, R * .05); g.closePath(); g.fill();
+      g.fillStyle = "#c9842a"; g.fillRect(-R * .15, -R * .55, R * .35, R * .12);
+    } else if (kind === "puffer") {
+      g.fillStyle = "#d6e23a";
+      for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; g.beginPath(); g.moveTo(Math.cos(a) * R * .35, Math.sin(a) * R * .35); g.lineTo(Math.cos(a + .18) * R * .85, Math.sin(a + .18) * R * .85); g.lineTo(Math.cos(a - .18) * R * .35, Math.sin(a - .18) * R * .35); g.fill(); }
+      g.beginPath(); g.arc(0, 0, R * .48, 0, TAU); g.fill();
+      g.fillStyle = "#14122b"; g.beginPath(); g.arc(-R * .12, -R * .06, R * .07, 0, TAU); g.fill();
+      g.fillStyle = "#e8423f"; g.beginPath(); g.arc(R * .2, R * .08, R * .08, 0, TAU); g.fill();
+    } else {
+      g.fillStyle = "rgba(140,90,220,.9)"; g.beginPath(); g.arc(0, -R * .15, R * .5, Math.PI, TAU); g.fill();
+      g.fillStyle = "rgba(201,166,255,.85)"; g.beginPath(); g.ellipse(0, -R * .05, R * .42, R * .28, 0, 0, TAU); g.fill();
+      g.strokeStyle = "#6c4ad4"; g.lineWidth = R * .08; g.lineCap = "round";
+      for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(i * R * .22, R * .1); g.quadraticCurveTo(i * R * .35, R * .45, i * R * .1, R * .85); g.stroke(); }
+    }
+    return (plateSprites[key] = c);
+  }
   const styles = [
     { body: "#fff4dc", rim: "#e7b15a", lip: "#c9842a", well: "#f3e2c0", mark: "#e8423f" },
     { body: "#1f8f86", rim: "#e7fff8", lip: "#0e4e49", well: "#146b66", mark: "#fff4dc" },
@@ -2111,11 +2220,17 @@ function renderPixi(alpha) {
   const hs = sceneToScreen(pX, pY), ys = sceneToScreen(q.x, q.y);
   const mark = aimMark();
   const plates = carn.plates.map(function (p) {
-    return { x: p.sx != null ? p.sx : p.u, y: p.sy != null ? p.sy : p.v, r: p.sr || p.r || 22, row: p.row | 0, rot: p.rot || 0, gold: p.kind === "gold" || !!p.boss, fish: sessionMode === "fish" && !p.boss };
-  }).sort(function (a, b) { return a.y - b.y; });
+    if (p.onScreen === false && !p.falling) return null;
+    return { x: p.sx != null ? p.sx : p.u, y: p.sy != null ? p.sy : p.v, r: p.sr || p.r || 22, row: p.row | 0, rot: p.rot || 0, gold: (p.kind === "gold" || !!p.boss) && !p.trap, fish: sessionMode === "fish" && !p.boss && !p.trap, trap: p.trap ? p.trapKind : "", falling: !!p.falling };
+  }).filter(Boolean).sort(function (a, b) { return a.y - b.y; });
+  const shelves = [];
+  if (playing && !S.attract && !store.d.bossGate && store.d.carnival) {
+    const n = YoSaucers.openRows(store.d.level | 0 || 1);
+    for (let row = 0; row < n; row++) shelves.push({ row: row, y: YoSaucers.shelfY(row, H), r: YoSaucers.screenRadius(W, H, row) });
+  }
   YoPixi.sync({
     w: W, h: H, t: S.time, venue: playing && !S.attract && (sessionMode === "fish" || (store.d.carnival && sessionMode !== "free")),
-    fish: sessionMode === "fish", plates: plates, reachRing: mark.ring, phase: S.phase,
+    fish: sessionMode === "fish", plates: plates, shelves: shelves, reachRing: mark.ring, phase: S.phase,
     showString: playing || S.attract, showYo: false, tangled: !!S.tangled,
     yo: ys, hand: hs, yoR: S.R * P.VS * (q.s || 1), hot: S.attract ? 0.35 : clamp(S.spin / 14, 0, 1),
     spin: S.spin, shakeX: S.shake ? Math.sin(S.time * 17) * S.shake : 0, shakeY: S.shake ? Math.cos(S.time * 13) * S.shake : 0,
@@ -2134,27 +2249,55 @@ function renderPixi(alpha) {
     paintActors(ag, alpha);
   }
 }
+function drawShelves(g) {
+  if (!carnOn() || store.d.bossGate) return;
+  const rows = YoSaucers.openRows(store.d.level | 0 || 1);
+  const fish = sessionMode === "fish";
+  if (!fish) {
+    const yAwn = Math.max(118, YoSaucers.shelfY(0, S.h) - YoSaucers.screenRadius(S.w, S.h, 0) - 22);
+    for (let i = 0; i < 14; i++) {
+      g.fillStyle = i % 2 ? "#e8423f" : "#fff4dc";
+      g.fillRect((S.w / 14) * i, yAwn, S.w / 14 + 1, 16);
+    }
+    g.fillStyle = "#6b3a1f"; g.fillRect(0, yAwn + 16, S.w, 6);
+    g.fillStyle = "#5a2418"; g.fillRect(0, yAwn, 8, S.h * 0.62); g.fillRect(S.w - 8, yAwn, 8, S.h * 0.62);
+  }
+  for (let row = 0; row < rows; row++) {
+    const y = YoSaucers.shelfY(row, S.h);
+    const r = YoSaucers.screenRadius(S.w, S.h, row);
+    if (fish) {
+      g.strokeStyle = "rgba(180,230,220,.28)"; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(10, y + r * 0.35); g.lineTo(S.w - 10, y + r * 0.35); g.stroke();
+    } else {
+      g.fillStyle = "#4a2414"; g.fillRect(10, y + r * 0.35, S.w - 20, 12);
+      g.fillStyle = "#c9842a"; g.fillRect(10, y + r * 0.35, S.w - 20, 3);
+      g.fillStyle = "#8a5a2a"; g.fillRect(10, y + r * 0.35 + 9, S.w - 20, 3);
+    }
+  }
+}
 function drawPlates(g, t) {
-  if (!carn.plates.length && !carn.bursts.length) return;
+  if (!carn.plates.length && !carn.bursts.length && !carnOn()) return;
+  drawShelves(g);
   const sf = P.sf;
   const reach = (playing && S.phase === "sleep") ? aimMark().ring : -1;
   for (const p of carn.plates.slice().sort((a, b) => (a.sy || 0) - (b.sy || 0))) {
     const age = carn.t - p.born, pop = clamp(age / .35, 0, 1), out = clamp((p.life + .5 - age) / .5, 0, 1), sc = (pop < 1 ? 1 - Math.pow(1 - pop, 3) * 1 + Math.sin(pop * Math.PI) * .12 : 1) * out;
     if (sc <= .01) continue;
+    if (p.onScreen === false && !p.falling) continue;
     const onScreen = p.sx != null;
     const q = onScreen ? { x: p.sx, y: p.sy, s: 1 } : (p.worldY != null ? proj(p.u, p.worldY) : fproj(p.u, p.v));
     const depth = onScreen ? 1 : (p.worldY != null ? q.s : sf);
     const row = Math.max(0, Math.min(3, p.row | 0));
     const base = onScreen ? (p.sr || p.r) : p.r * depth;
     const r = base * sc;
-    const img = plateSprite(sessionMode === "fish" ? "fish" : p.kind, row), size = r / .46;
+    const img = plateSprite(p.trap ? p.trapKind : (sessionMode === "fish" ? "fish" : p.kind), row), size = r / .46;
     const shadowA = 0.35 + row * 0.117, shadowOff = 3 + row * (7 / 3);
     g.save();
     g.fillStyle = "rgba(8,6,20," + shadowA.toFixed(2) + ")";
     g.beginPath(); g.ellipse(q.x, q.y + shadowOff, r * 0.92, r * 0.42, 0, 0, TAU); g.filter = "blur(" + (2 + row) + "px)"; g.fill(); g.filter = "none";
     g.translate(q.x, q.y); g.rotate(p.rot + (p.moving ? Math.sin(t * 3 + p.ph) * .2 : 0)); g.drawImage(img, -size, -size, size * 2, size * 2);
     g.filter = "none"; g.restore();
-    if (reach === row) {
+    if (reach === row && !p.trap) {
       g.save(); g.globalCompositeOperation = "lighter"; g.strokeStyle = "rgba(255,201,74,.55)"; g.lineWidth = 2;
       g.beginPath(); g.arc(q.x, q.y, r * 0.98, 0, TAU); g.stroke(); g.restore();
     }
@@ -2525,6 +2668,12 @@ function handleEvents() {
         toast(YoProgress.gradeWord(e.grade), (e.name || "Boss") + " · " + e.hp + " left", false, e.grade === "perfect");
         el.toast.classList.add("g-" + (e.grade || "good"));
         sfx.hit(e.grade === "perfect" ? .85 : e.grade === "great" ? .5 : .25); buzz(10); break;
+      }
+      case "trap": {
+        sfx.boom(); buzz([36, 48, 28, 18]);
+        if (e.ended) { toast("Run over", "A trap took the last string", true); showRunOver("Run over", e.lost ? "The trap cleared " + e.lost.toLocaleString() + " points." : "The last string is gone."); saveBest(); }
+        else toast("Booby trap", e.left + (e.left === 1 ? " string left" : " strings left"), true);
+        break;
       }
       case "plate": sfx.smash(e.kind === "gold" || e.kind === "boss", e.chain); buzz(e.kind === "gold" || e.kind === "boss" ? [20, 30, 30] : [14, 20, 10]);
         gainXP(e.xp || 0);

@@ -103,12 +103,8 @@
     });
   }
 
-  function openRows(level) {
-    const lv = Math.max(1, level | 0);
-    if (lv >= 6) return 4;
-    if (lv >= 4) return 3;
-    if (lv >= 2) return 2;
-    return 1;
+  function openRows() {
+    return 4;
   }
   function openCells(level) {
     const n = openRows(level);
@@ -200,7 +196,8 @@
     const period = Math.max(5.2, 8.6 - Math.min(2.8, lv * 0.12));
     const pause = 0.55;
     const moveT = period - pause;
-    const speed = (22 + Math.min(64, (lv - 1) * 4.5)) * [0.7, 1.05, 1.2, 1.35][ri];
+    const pace = 0.72 + Math.min(0.28, (lv - 1) * 0.035);
+    const speed = (22 + Math.min(64, (lv - 1) * 4.5)) * [0.7, 1.05, 1.2, 1.35][ri] * pace;
     const dir0 = ri % 2 === 0 ? 1 : -1;
     const cycle = period * 2;
     const local = ((t % cycle) + cycle) % cycle;
@@ -214,23 +211,17 @@
     else { along = 0; dir = -dir0; moving = 0; }
     return { offset: dir0 * along, dir: dir, moving: moving, speed: speed * moving, cruise: speed };
   }
-  // One trap per shelf until level 10. A shelf has 3 plates, so a second trap
-  // would drop plates under 70% of the occupied slots. The ratio cap holds after that too.
-  function trapsPerShelf(level) {
-    const lv = Math.max(1, level | 0);
-    const platesPerShelf = 3;
-    const maxByRatio = Math.max(1, Math.floor((platesPerShelf * 0.3) / 0.7 + 1e-9));
-    const wanted = lv < 10 ? 1 : 2;
-    return Math.min(wanted, maxByRatio);
-  }
+  // Level 1 has a single trap on the far shelf. Later levels add one shelf at a time, never more than one per shelf.
   function trapSlots(level) {
-    const rows = openRows(level);
-    const n = trapsPerShelf(level);
+    const lv = Math.max(1, level | 0);
+    const n = lv <= 1 ? 1 : lv < 4 ? 2 : lv < 7 ? 3 : 4;
     const slots = [];
-    for (let row = 0; row < rows; row++) {
-      for (let i = 0; i < n; i++) slots.push({ row: row, index: i });
-    }
+    for (let row = 0; row < n; row++) slots.push({ row: row, index: 0 });
     return slots;
+  }
+  function trapsPerShelf(level) {
+    const slots = trapSlots(level);
+    return slots.length ? 1 : 0;
   }
   // Index 0 patrols the straight hang. Later traps sit in the gaps, clear of a whip to either edge.
   function galleryTrap(row, index, t, level, w, h) {

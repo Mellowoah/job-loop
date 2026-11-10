@@ -2308,14 +2308,24 @@ function drawShelves(g) {
   if (!carnOn() || store.d.bossGate) return;
   const rows = YoSaucers.openRows(store.d.level | 0 || 1);
   const fish = sessionMode === "fish";
-  if (!fish) {
-    const yAwn = Math.max(118, YoSaucers.shelfY(0, S.h) - YoSaucers.screenRadius(S.w, S.h, 0) - 22);
+  const yTop = YoSaucers.shelfY(0, S.h) - YoSaucers.screenRadius(S.w, S.h, 0) - 28;
+  const yBot = YoSaucers.shelfY(rows - 1, S.h) + YoSaucers.screenRadius(S.w, S.h, rows - 1) + 22;
+  if (fish) {
+    g.fillStyle = "rgba(6, 28, 36, .72)";
+    g.fillRect(8, yTop, S.w - 16, Math.max(40, yBot - yTop));
+  } else {
+    const panel = g.createLinearGradient(0, yTop, 0, yBot);
+    panel.addColorStop(0, "#4a2418"); panel.addColorStop(.45, "#2a120e"); panel.addColorStop(1, "#1a0c0a");
+    g.fillStyle = panel; g.fillRect(8, yTop, S.w - 16, Math.max(40, yBot - yTop));
+    g.strokeStyle = "rgba(120, 64, 32, .45)"; g.lineWidth = 2;
+    for (let x = 26; x < S.w - 16; x += 34) { g.beginPath(); g.moveTo(x, yTop + 6); g.lineTo(x, yBot - 6); g.stroke(); }
+    const yAwn = yTop;
     for (let i = 0; i < 14; i++) {
       g.fillStyle = i % 2 ? "#e8423f" : "#fff4dc";
       g.fillRect((S.w / 14) * i, yAwn, S.w / 14 + 1, 16);
     }
     g.fillStyle = "#6b3a1f"; g.fillRect(0, yAwn + 16, S.w, 6);
-    g.fillStyle = "#5a2418"; g.fillRect(0, yAwn, 8, S.h * 0.62); g.fillRect(S.w - 8, yAwn, 8, S.h * 0.62);
+    g.fillStyle = "#5a2418"; g.fillRect(0, yAwn, 8, yBot - yAwn); g.fillRect(S.w - 8, yAwn, 8, yBot - yAwn);
   }
   for (let row = 0; row < rows; row++) {
     const y = YoSaucers.shelfY(row, S.h);

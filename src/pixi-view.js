@@ -252,12 +252,21 @@
     if (rails) {
       rails.clear();
       const shelves = snap.shelves || [];
-      if (shelves.length && !snap.fish) {
-        const yAwn = Math.max(108, shelves[0].y - shelves[0].r - 26);
-        for (let i = 0; i < 14; i++) rails.rect((w / 14) * i, yAwn, w / 14 + 1, 16).fill({ color: i % 2 ? 0xe8423f : 0xfff4dc });
-        rails.rect(0, yAwn + 16, w, 6).fill({ color: 0x6b3a1f });
-        rails.rect(0, yAwn, 8, h * 0.55).fill({ color: 0x5a2418 });
-        rails.rect(w - 8, yAwn, 8, h * 0.55).fill({ color: 0x5a2418 });
+      if (shelves.length) {
+        const yTop = shelves[0].y - shelves[0].r - 28;
+        const last = shelves[shelves.length - 1];
+        const yBot = last.y + last.r + 22;
+        const panelH = Math.max(40, yBot - yTop);
+        if (snap.fish) rails.rect(8, yTop, w - 16, panelH).fill({ color: 0x061c24, alpha: 0.72 });
+        else {
+          rails.rect(8, yTop, w - 16, panelH).fill({ color: 0x2a120e });
+          rails.rect(8, yTop, w - 16, panelH * 0.45).fill({ color: 0x4a2418, alpha: 0.55 });
+          for (let x = 26; x < w - 16; x += 34) rails.rect(x, yTop + 6, 2, panelH - 12).fill({ color: 0x784020, alpha: 0.35 });
+          for (let i = 0; i < 14; i++) rails.rect((w / 14) * i, yTop, w / 14 + 1, 16).fill({ color: i % 2 ? 0xe8423f : 0xfff4dc });
+          rails.rect(0, yTop + 16, w, 6).fill({ color: 0x6b3a1f });
+          rails.rect(0, yTop, 8, panelH).fill({ color: 0x5a2418 });
+          rails.rect(w - 8, yTop, 8, panelH).fill({ color: 0x5a2418 });
+        }
       }
       for (let s = 0; s < shelves.length; s++) {
         const shelf = shelves[s];

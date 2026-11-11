@@ -67,7 +67,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 #hud{opacity:0;transform:translateY(-8px);transition:opacity .35s var(--ease),transform .35s var(--ease);z-index:12}
 #app.playing #hud{opacity:1;transform:none}
 #app:not(.playing) #hud *{pointer-events:none!important}
-.topbar{position:absolute;left:0;right:0;top:0;padding:calc(var(--sat) + 10px) calc(var(--sar) + 12px) 0 calc(var(--sal) + 12px);display:flex;gap:8px;align-items:flex-start;pointer-events:none}
+.topbar{position:absolute;left:0;right:0;top:0;padding:max(24px, calc(var(--sat) + 12px)) calc(var(--sar) + 12px) 0 calc(var(--sal) + 12px);display:flex;gap:8px;align-items:flex-start;pointer-events:none}
+#modeBtn{display:none !important}
 .topbar>button{pointer-events:auto;flex:none}
 .scorecard{position:relative;flex:1 1 auto;max-width:250px;min-width:0;padding:7px 12px 9px 10px;display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center}
 .lvl{grid-row:span 2;width:42px;height:46px;display:grid;place-items:center;font-family:var(--game);font-size:20px;color:var(--ink);line-height:1;
@@ -259,6 +260,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .looktag{position:absolute;left:50%;top:calc(var(--sat) + 132px);transform:translateX(-50%);height:28px;padding:0 10px;display:flex;align-items:center;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--cream);pointer-events:none;z-index:5}
 .callout{position:absolute;left:0;right:0;top:38%;text-align:center;pointer-events:none;font-family:var(--game);font-size:min(18vw,72px);color:#fff;opacity:0;z-index:6;text-shadow:0 4px 0 rgba(0,0,0,.45),0 0 24px rgba(var(--accent-rgb),.65)}
 .callout.on{animation:toast 1.1s var(--ease) forwards}
+.callout.bomb{opacity:1;animation:none;font-size:min(7vw,28px);line-height:1.15;top:34%}
 .chest-btn{position:absolute;right:calc(var(--sar) + 14px);bottom:calc(var(--sab) + 168px);height:48px;min-width:48px;padding:0 14px;z-index:7;pointer-events:auto;font-family:var(--game);font-size:16px;color:var(--ink)}
 .toast.g-perfect .n{background:linear-gradient(180deg,#fff,#ffe7a8 42%,#e7b15a);-webkit-background-clip:text;background-clip:text}
 .toast.g-great .n{background:linear-gradient(180deg,#fff,#e7ffe9 45%,#7dcea0);-webkit-background-clip:text;background-clip:text}
@@ -828,7 +830,8 @@ function burst(S, x, y, n, kind) {
   }
 }
 function floater(S, text, at) {
-  if (S.floaters.some((f) => f.text === text && f.life > f.max - 0.08)) return;
+  const x = at ? at.x : S.yo.x, y = at ? at.y : S.yo.y - S.R - 36;
+  if (S.floaters.some((f) => Math.hypot((f.x || 0) - x, (f.y || 0) - y) < 42 && f.life > f.max - 0.35)) return;
   const item = at ? { x: at.x, y: at.y, screen: true, text, life: 0.9, max: 0.9 } : { x: S.yo.x, y: S.yo.y - S.R - 36, screen: false, text, life: 0.9, max: 0.9 };
   S.floaters.push(item); if (S.floaters.length > 4) S.floaters.shift();
 }
@@ -869,7 +872,7 @@ function doThrow(S, power) {
   S.yo.vx = clamp(nx * speed * 0.72, -640 * S.scale, 640 * S.scale) / mass;
   S.yo.vy = ny * speed;
   S.events.push({ type: "throw", power, spins: count, aimX: ax, aimY: ay });
-  floater(S, count + " spins", { x: Math.min(110, S.w * 0.28), y: Math.max(156, S.h * 0.2) });
+  if (!store.d.carnival) floater(S, count + " spins", { x: Math.min(110, S.w * 0.28), y: Math.max(156, S.h * 0.2) });
   if (!S.reduced) S.shake = Math.max(S.shake, 2 + power * 3);
 }
 function startReturn(S, manual) {
@@ -1101,6 +1104,7 @@ function layoutView() {
   P.sf = sDepth(S.floorY);
   P.Ax = W / 2; P.Acy = P.Ay;
   if (store.d.carnival) { cam.x = P.Ax; cam.y = P.Acy; cam.z = 1; cam.vx = cam.vy = cam.vz = 0; cam.init = true; }
+  if (store.d.carnival && !shot.ready && window.YoSaucers) { shot.x = W * 0.5; shot.y = YoSaucers.shelfY(1, H); shot.ready = true; }
   placeNote();
 }
 function sDepth(wy) { return clamp(P.Dc / Math.max(P.Dc * .55, P.Dc + (wy - S.handBaseY)), .05, 1.8); }
@@ -1787,6 +1791,7 @@ function render(alpha) {
     const rg = g.createRadialGradient(fs.x, fs.y, 0, fs.x, fs.y, sr); rg.addColorStop(0, "rgba(0,0,0,.32)"); rg.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = rg; g.beginPath(); g.arc(fs.x, fs.y, sr, 0, TAU); g.fill(); }
   let q = proj(yxW, yyW);
   if (held) { const hp = handPoint(H_HELD.x, H_HELD.y); q = { x: hp.x, y: hp.y, s: 1, z: 1, u: 0 }; }
+  if (store.d.carnival && shot.ready && (S.phase === "out" || S.phase === "sleep" || S.phase === "return")) { const p = shotScreen(); q = { x: p.x, y: p.y, s: 1, z: 1, u: 0 }; }
   const R = S.R * P.VS * q.s;
   // contact shadow straight below on the floor: darker and sharper as the yo-yo nears it
   const gap = clamp((S.floorY - (yyW + S.R)) / Math.max(80, (S.floorY - S.handBaseY) * .7), 0, 1);
@@ -1810,7 +1815,7 @@ function render(alpha) {
   drawParticles(g, projParticles(S.particles));
   g.globalAlpha = 1;
   // screen-space: dust in the air + lens vignette (not affected by the camera)
-  g.setTransform(DPR, 0, 0, DPR, 0, 0); drawLive(g, t); drawVignette(g);
+  g.setTransform(DPR, 0, 0, DPR, 0, 0); drawLive(g, t); drawVignette(g); drawAim(g);
 }
 function aimMark() {
   const ang = Math.abs(theta(S));
@@ -1819,6 +1824,35 @@ function aimMark() {
   const y = band.top + (band.bot - band.top) * [0.03, 0.32, 0.60, 0.88][ring];
   const worldX = S.hand.x * 0.82 + S.yo.x * 0.18;
   return { x: clamp(worldX, 18, S.w - 18), y: y, ring: ring };
+}
+const shot = { x: 0, y: 0, ready: false, u: 0 };
+function handScreen() {
+  const q = proj(S.hand.x, S.hand.y);
+  return sceneToScreen(q.x, q.y);
+}
+function shotScreen() {
+  const hs = handScreen();
+  const u = S.phase === "held" || S.phase === "dead" ? 0 : clamp(shot.u, 0, 1);
+  return { x: lerp(hs.x, shot.x, u), y: lerp(hs.y, shot.y, u) };
+}
+function setAim(x, y) {
+  const frame = (window.YoSaucers && YoSaucers.playBand) ? YoSaucers.playBand(H) : { top: 96, bot: H * 0.62 };
+  shot.x = clamp(x, 16, Math.max(17, W - 16));
+  shot.y = clamp(y, frame.top + 8, Math.max(frame.top + 12, frame.bot));
+  shot.ready = true;
+  inp.x = shot.x;
+  inp.y = S.handBaseY;
+}
+function carnivalFlight(dt) {
+  if (!store.d.carnival || !playing || S.attract) return;
+  if (S.phase === "return") { shot.u = Math.max(0, shot.u - dt / 0.32); return; }
+  if (S.phase !== "out" && S.phase !== "sleep") { shot.u = 0; return; }
+  const cap = inp.touching ? 1 : 1;
+  shot.u = Math.min(cap, shot.u + dt / (inp.touching && shot.u > 0.82 ? 0.9 : 0.36));
+}
+function carnivalMaybeReturn() {
+  if (!store.d.carnival || !playing || inp.touching || S.attract) return;
+  if ((S.phase === "out" || S.phase === "sleep") && shot.u >= 1) startReturn(S, false);
 }
 function sceneToScreen(x, y) {
   const pz = 1 + (S.punch || 0), ox = W / 2, oy = H * .45;
@@ -2027,21 +2061,28 @@ function carnUpdate(dt) {
     if (carn.fishLeft <= 0) { carn.fishLeft = 0; S.events.push({ type: "fishEnd" }); carn.fishLeft = null; }
   }
   if (carn.chain && carn.t - carn.lastHit > 3.2) carn.chain = 0;
-  const sleeping = S.phase === "sleep" && S.spin >= 1 && !S.tangled;
-  if (!sleeping || S.phase === "held" || S.phase === "dead") return;
+  const flying = (S.phase === "out" || S.phase === "sleep") && !S.tangled;
+  if (!flying || S.phase === "held" || S.phase === "dead") return;
   if (sessionMode === "fish" && (carn.hooked || 0) >= 3) return;
   const ang = Math.abs(theta(S));
   const ring = YoSaucers.ringForAngle(ang);
-  const qYo = aimMark();
+  const qYo = store.d.carnival ? shotScreen() : aimMark();
   for (let i = carn.plates.length - 1; i >= 0; i--) {
     const p = carn.plates[i];
     if (p.falling) continue;
-    if (carn.t - p.born < .35) continue;
+    if (carn.t - p.born < .12) continue;
     if (p.hitThrow === S.throws) continue;
     if (!p.boss && p.onScreen === false) continue;
-    if (!p.boss && (p.row | 0) !== qYo.ring) continue;
-    const dx = Math.abs(qYo.x - (p.sx != null ? p.sx : p.u));
-    const slop = p.boss ? YoSaucers.hitSlop(S.w, p.sr || p.r || 22) : YoSaucers.gallerySlop(p.sr || p.r || 22);
+    let dx, slop;
+    if (store.d.carnival && !p.boss) {
+      if (shot.u < 0.72) continue;
+      dx = Math.hypot(qYo.x - (p.sx || 0), qYo.y - (p.sy || 0));
+      slop = Math.max(14, (p.sr || 22) * 0.55);
+    } else {
+      if (!p.boss && (p.row | 0) !== qYo.ring) continue;
+      dx = Math.abs(qYo.x - (p.sx != null ? p.sx : p.u));
+      slop = p.boss ? YoSaucers.hitSlop(S.w, p.sr || p.r || 22) : YoSaucers.gallerySlop(p.sr || p.r || 22);
+    }
     if (dx > slop) continue;
     if (p.trap) {
       p.hitThrow = S.throws;
@@ -2114,9 +2155,8 @@ function boomTrap(i) {
   carn.bursts.push({ u: p.u, v: p.v, worldY: p.worldY, r: p.r * 1.2, life: .5, max: .5, gold: false });
   const ended = S.stringsLeft <= 0;
   if (ended) {
-    const lost = S.score | 0;
-    S.score = 0; S.spin = 0; S.phase = "dead";
-    S.events.push({ type: "trap", left: 0, ended: true, lost: lost });
+    S.spin = 0; S.phase = "dead";
+    S.events.push({ type: "trap", left: 0, ended: true, lost: S.score | 0 });
   } else S.events.push({ type: "trap", left: S.stringsLeft, ended: false });
 }
 function smashPlate(i) {
@@ -2257,6 +2297,7 @@ function paintActors(g, alpha) {
   if (playing) solveArm(pX, pY, hq.s);
   let q = proj(yxW, yyW);
   if (held) { const hp = handPoint(H_HELD.x, H_HELD.y); q = { x: hp.x, y: hp.y, s: 1, z: 1, u: 0 }; }
+  if (store.d.carnival && shot.ready && (S.phase === "out" || S.phase === "sleep" || S.phase === "return")) { const p = shotScreen(); q = { x: p.x, y: p.y, s: 1, z: 1, u: 0 }; }
   const R = S.R * P.VS * q.s;
   const drawYo = () => drawYoyoDepth(g, q, R, m, ang, S.reduced ? 0 : S.rollDir * S.spin * .5, hot, S.time);
   const nearer = held || (q.u < -.02) || (rig.rot < .5 && (S.phase === "out" || S.phase === "return") && Math.abs(yyW - hyW) < S.Lmin * 2.2);
@@ -2272,6 +2313,7 @@ function renderPixi(alpha) {
   const held = S.phase === "held" && playing;
   const pX = hq.x + (playing ? rig.ox : 0), pY = hq.y + (playing ? rig.oy : 0);
   if (held) { const hp = handPoint(H_HELD.x, H_HELD.y); q = { x: hp.x, y: hp.y, s: 1 }; }
+  if (store.d.carnival && (S.phase === "out" || S.phase === "sleep" || S.phase === "return") && shot.ready) q = Object.assign({ s: 1 }, shotScreen());
   const hs = sceneToScreen(pX, pY), ys = sceneToScreen(q.x, q.y);
   const mark = aimMark();
   const plates = carn.plates.map(function (p) {
@@ -2293,16 +2335,41 @@ function renderPixi(alpha) {
   });
   const arm = $("arm");
   if (arm) {
-    const tricks = document.getElementById("tricks");
-    if (tricks) {
-      const clip = Math.max(0, Math.round(app.getBoundingClientRect().bottom - tricks.getBoundingClientRect().top));
+    const chips = document.getElementById("tricks");
+    if (chips) {
+      const clip = Math.max(0, Math.round(app.getBoundingClientRect().bottom - chips.getBoundingClientRect().top + 4));
       arm.style.clipPath = "inset(0 0 " + clip + "px 0)";
     }
     if (arm.width !== Math.round(W * DPR)) { arm.width = Math.round(W * DPR); arm.height = Math.round(H * DPR); }
     const ag = arm.getContext("2d");
     ag.setTransform(1, 0, 0, 1, 0, 0); ag.clearRect(0, 0, arm.width, arm.height);
     paintActors(ag, alpha);
+    drawAim(ag);
   }
+}
+function drawAim(g) {
+  if (!playing || !store.d.carnival || S.attract || S.phase !== "held" || !shot.ready) return;
+  const hs = handScreen();
+  g.save();
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.strokeStyle = "rgba(255,244,220,.9)";
+  g.lineWidth = 2;
+  g.setLineDash([6, 8]);
+  g.beginPath();
+  g.moveTo(hs.x, Math.min(hs.y, H - 8));
+  g.lineTo(shot.x, shot.y);
+  g.stroke();
+  g.setLineDash([]);
+  g.strokeStyle = "#ffc94a";
+  g.lineWidth = 2.5;
+  g.beginPath();
+  g.arc(shot.x, shot.y, 16, 0, TAU);
+  g.stroke();
+  g.beginPath();
+  g.arc(shot.x, shot.y, 3, 0, TAU);
+  g.fillStyle = "#ffc94a";
+  g.fill();
+  g.restore();
 }
 function drawShelves(g) {
   if (!carnOn() || store.d.bossGate) return;
@@ -2392,12 +2459,18 @@ function drawShards(g) {
 }
 /* ================= Input: touch / mouse ================= */
 let drag = null;
+function playPoint(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
 cv.addEventListener("pointerdown", (e) => {
   if (!playing) return;
   e.preventDefault(); sfx.unlock();
   try { cv.setPointerCapture(e.pointerId); } catch {}
+  const p = playPoint(e);
   drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: inp.x, oy: inp.y, t0: performance.now(), moved: 0, samples: [{ t: performance.now(), x: e.clientX, y: e.clientY }], mouse: e.pointerType === "mouse" };
   inp.touching = true;
+  if (store.d.carnival) setAim(p.x, p.y);
 });
 cv.addEventListener("pointermove", (e) => {
   if (!playing) return;
@@ -2407,6 +2480,7 @@ cv.addEventListener("pointermove", (e) => {
   for (const ev of evs) drag.samples.push({ t: ev.timeStamp || performance.now(), x: ev.clientX, y: ev.clientY });
   const now = performance.now(); while (drag.samples.length > 2 && now - drag.samples[0].t > 120) drag.samples.shift();
   const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy; drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+  if (store.d.carnival) { const p = playPoint(e); setAim(p.x, p.y); return; }
   // relative drag (no jump to the finger) — mouse uses absolute since the cursor is the hand
   inp.mcx = drag.mouse ? e.clientX : null; // touch drags are relative, so the camera never fights them
   inp.x = drag.mouse ? camInvX(e.clientX) : drag.ox + dx;
@@ -2416,6 +2490,12 @@ function endDrag(e) {
   if (!drag || e.pointerId !== drag.id) return;
   const d = drag; drag = null; inp.touching = false;
   if (e.type === "pointercancel") return;
+  if (store.d.carnival) {
+    const p = playPoint(e); setAim(p.x, p.y);
+    if (S.phase === "held" && !turnLocked()) { aimFromHand(); requestThrow(.85); }
+    else if (S.phase !== "held") startReturn(S, true);
+    return;
+  }
   const now = performance.now(), dur = now - d.t0, s = d.samples, a = s[0], b = s[s.length - 1];
   const span = Math.max(16, (b.t - a.t)), vx = (b.x - a.x) / span * 1000, vy = (b.y - a.y) / span * 1000;
   if (d.moved < 14 && dur < 350) { primary(); return; }
@@ -2433,12 +2513,19 @@ function endDrag(e) {
 cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
 cv.addEventListener("contextmenu", (e) => e.preventDefault());
 function aimFromHand() {
+  if (store.d.carnival && shot.ready) {
+    const hs = handScreen();
+    S.pendingAimX = (shot.x - hs.x) * 4;
+    S.pendingAimY = Math.max(480, (hs.y - shot.y) * 4);
+    return;
+  }
   S.pendingAimX = (S.hand.x - S.w / 2) * 3.1 + ((inp.keys && (inp.keys.has("ArrowLeft") || inp.keys.has("KeyA"))) ? -900 : (inp.keys && (inp.keys.has("ArrowRight") || inp.keys.has("KeyD"))) ? 900 : 0);
   S.pendingAimY = 1000;
 }
 function primary() {
   if (!playing || turnLocked()) return; sfx.unlock();
-  if (S.phase === "held") { aimFromHand(); requestThrow(.9); } else queueTug(S);
+  if (S.phase === "held") { if (!shot.ready) setAim(S.hand.x, (YoSaucers.playBand(H).top + YoSaucers.playBand(H).bot) * 0.5); aimFromHand(); requestThrow(.9); }
+  else startReturn(S, true);
 }
 addEventListener("keydown", (e) => {
   if (!playing) { if (!$("menu").classList.contains("hidden") && !sheetOpen) { if (e.code === "ArrowLeft") pick(-1); if (e.code === "ArrowRight") pick(1); if (e.code === "Enter" && document.activeElement === document.body) $("play").click(); } if (e.code === "Escape") closeSheets(); return; }
@@ -2485,12 +2572,14 @@ function onMotion(e) {
     // pitch < 0: top of the phone flicked forward/down (away from you) -> throw; pitch > 0: pulled back toward you -> bind
     if (S.phase === "held" && !turnLocked()) {
       if (pitch < 150) {
+        if (store.d.carnival) setAim(W / 2 + clamp(tilt.fx / 18, -1, 1) * W * 0.42, shot.ready ? shot.y : YoSaucers.shelfY(0, H));
         S.pendingAimX = (tilt.side || 0) * 1.6 + (tilt.fx || 0) * 36;
         S.pendingAimY = 900 + Math.max(0, -pitch);
+        if (store.d.carnival) aimFromHand();
         requestThrow(clamp(.35 + p * .3, .45, 1), 0, clamp(tilt.side / 600, -1, 1), false);
       }
     } // real wrist already wound up
-    else if (pitch > -150 && (S.phase !== "out" || S.L > S.Lmax * .3)) queueTug(S);
+    else if (pitch > -150 && (S.phase !== "out" || S.L > S.Lmax * .3)) { if (store.d.carnival) startReturn(S, true); else queueTug(S); }
   }
 }
 function enableTilt(fromGesture) {
@@ -2674,14 +2763,14 @@ function updateHud() {
   if (sp !== last.spin || cap !== last.cap) {
     el.spinVal.textContent = String(sp);
     const tag = el.spinVal.nextElementSibling;
-    if (tag) tag.textContent = cap > 0 ? "OF " + cap : "SPIN";
+    if (tag) tag.textContent = store.d.carnival ? "" : (cap > 0 ? "OF " + cap : "SPIN");
     last.spin = sp; last.cap = cap;
   }
   const f = cap > 0 ? clamp(S.spin / cap, 0, 1) : 0;
   el.arc.style.strokeDashoffset = String(163.4 * (1 - f));
   el.arc.style.stroke = cap && sp <= 2 ? "#d0604a" : cap && sp <= Math.ceil(cap * .4) ? "#e7a14a" : TH.css.accent;
   const sc = [...S.scored].join(); if (sc !== last.scored) { for (const id in chipEls) chipEls[id].classList.toggle("done", S.scored.has(id)); last.scored = sc; }
-  const act = S.phase === "held" ? "Throw" : S.phase === "dead" || S.tangled ? "Reel in" : S.phase === "return" ? "Pump" : "Bind";
+  const act = store.d.carnival ? (S.phase === "held" ? "Throw" : "Recall") : (S.phase === "held" ? "Throw" : S.phase === "dead" || S.tangled ? "Reel in" : S.phase === "return" ? "Pump" : "Bind");
   if (act !== last.action) { el.action.textContent = act; el.action.classList.toggle("alt", act === "Reel in" || act === "Pump"); last.action = act; }
   const boss = carn.plates.find((p) => p.boss);
   const bar = $("bossBar");
@@ -2711,10 +2800,15 @@ function handleEvents() {
       case "tug": sfx.tug(); buzz(10); break;
       case "sleep": sfx.sleep(); buzz(8); break;
       case "die": {
+        if (store.d.carnival) {
+          if (e.lost) { S.score += e.lost; bumpBest(S); }
+          if (S.phase === "dead") startReturn(S, true);
+          break;
+        }
         sfx.die(); buzz([28, 40, 36]);
         if (S.stringsLeft == null) S.stringsLeft = YoProgress.stringCount(store.d);
         S.stringsLeft = Math.max(0, S.stringsLeft - 1);
-        if (S.stringsLeft > 0 && e.lost) { S.score += e.lost; bumpBest(S); toast("String snapped", S.stringsLeft + " left · score held", true); }
+        if (S.stringsLeft > 0 && e.lost) { S.score += e.lost; bumpBest(S); toast("String snapped", S.stringsLeft + " left · score held", true); showCallout("String snapped"); }
         else { toast("Run over", e.lost ? "−" + e.lost.toLocaleString() + " points" : "score cleared", true); showRunOver(); }
         saveBest();
         if (duel.on) duelFinishThrow(true);
@@ -2736,8 +2830,9 @@ function handleEvents() {
       }
       case "trap": {
         sfx.boom(); buzz([36, 48, 28, 18]);
+        const banner = $("callout");
+        if (banner) { banner.textContent = "-1 STRING: You hit a bomb!"; banner.classList.add("on", "bomb"); clearTimeout(banner._t); banner._t = setTimeout(() => banner.classList.remove("on", "bomb"), 1600); }
         if (e.ended) { toast("Run over", "A trap took the last string", true); showRunOver("Run over", e.lost ? "The trap cleared " + e.lost.toLocaleString() + " points." : "The last string is gone."); saveBest(); }
-        else toast("Booby trap", e.left + (e.left === 1 ? " string left" : " strings left"), true);
         break;
       }
       case "plate": sfx.smash(e.kind === "gold" || e.kind === "boss", e.chain); buzz(e.kind === "gold" || e.kind === "boss" ? [20, 30, 30] : [14, 20, 10]);
@@ -2750,8 +2845,7 @@ function handleEvents() {
         store.d.plates = (store.d.plates || 0) + 1;
         store.d.stats.plates = (store.d.stats.plates || 0) + 1;
         if ((carn.chain || 0) > (store.d.stats.bestChain || 0)) store.d.stats.bestChain = carn.chain;
-        toast(YoProgress.gradeWord(e.grade), e.bossName || "", false, e.grade === "perfect" || e.kind === "boss");
-        el.toast.classList.add("g-" + (e.grade || "good"));
+        if (e.kind === "boss" || !store.d.carnival) { toast(YoProgress.gradeWord(e.grade), e.bossName || "", false, e.grade === "perfect" || e.kind === "boss"); el.toast.classList.add("g-" + (e.grade || "good")); }
         if (e.mult === 2 || e.mult === 2.5 || e.mult === 3) showCallout("×" + e.mult);
         break;
       case "line": toast("LINE", "+" + e.points, false, true); gainCoins(5); showCallout("LINE"); break;
@@ -2761,6 +2855,11 @@ function handleEvents() {
       case "fishEnd": finishFish(); break;
       case "flat": toast(e.label, "+" + e.points); gainXP(YoScore.trickXP(e.points)); store.save(); break;
       case "trick": {
+        if (store.d.carnival && !inp.touching) {
+          S.score = Math.max(0, S.score - (e.points | 0));
+          store.d.tricks[e.id] = (store.d.tricks[e.id] || 0) + 1;
+          break;
+        }
         const specT = TRICKS.find((t) => t.id === e.id);
         if (specT) {
           const scaled = YoScore.trickScore(specT.base, store.d.level | 0 || 1, e.combo);
@@ -3074,10 +3173,11 @@ function tick(dt) {
       if (S.baseDrag) { const tier = Math.min(5, (store.d.upgrades && store.d.upgrades.bearing) | 0); S.cfg.spinDrag = S.baseDrag * (1 - 0.06 * tier); }
       if (S.hitStop > 0 && !S.reduced) S.hitStop = Math.max(0, S.hitStop - dt);
       if (inp.keys.size) { const v = 560 * S.scale * dt; if (inp.keys.has("ArrowLeft") || inp.keys.has("KeyA")) inp.x -= v; if (inp.keys.has("ArrowRight") || inp.keys.has("KeyD")) inp.x += v; if (S.phase !== "held" && (inp.keys.has("KeyW") || inp.keys.has("ArrowUp"))) inp.y += v; }
-      if (tilt.live && !inp.touching) {
+      if (tilt.live && !inp.touching && !shot.ready) {
         inp.x = W / 2 + clamp(tilt.fx / 24, -1, 1) * W * .42;
         inp.y = S.handBaseY + clamp(-tilt.fy / 22, -.15, 1) * (S.handMaxY - S.handBaseY);
       } else if (!inp.touching && !inp.keys.has("KeyW") && !inp.keys.has("ArrowUp")) inp.y += (S.handBaseY - inp.y) * (1 - Math.exp(-3.2 * dt));
+      if (store.d.carnival && shot.ready) inp.x = shot.x;
       inp.x = clamp(inp.x, S.R + 10, W - S.R - 10); inp.y = clamp(inp.y, S.handMinY, S.handMaxY);
       store.d.stats.playSeconds = (store.d.stats.playSeconds || 0) + dt;
     }
@@ -3089,7 +3189,10 @@ function tick(dt) {
     emitTrails(dt);
     stepFx(S, dt);
     if (playing) rigUpdate(dt);
+    if (store.d.carnival && playing && S.phase === "held") rig.bend = clamp((shot.x - W / 2) / Math.max(40, W * 0.5), -0.8, 0.8);
+    carnivalFlight(dt);
     carnUpdate(dt);
+    carnivalMaybeReturn();
     yoViewUpdate(dt);
     if (usePixi && window.YoPixi && YoPixi.ready()) {
       const hq = proj(S.hand.x, S.hand.y), yq = proj(S.yo.x, S.yo.y);
@@ -3163,6 +3266,7 @@ window.__yo = {
   manual: (on) => { manualClock = !!on; prevT = performance.now(); },
   advance: (frames = 1, fps = 60) => { for (let i = 0; i < frames; i++) tick(1 / fps); },
   drive: (x, y) => { inp.x = x; if (y != null) inp.y = y; inp.touching = true; },
+  aim: (x, y) => { setAim(x, y); inp.touching = false; return { x: shot.x, y: shot.y }; },
   release: () => { inp.touching = false; },
   // test hooks: preview a model's in-play art for this session only (no unlock, nothing saved), toggle plates, yo-yo screen position
   previewModel: (id) => { if (YO[id]) applyYoyo(S, id); return S.cfg.id; },

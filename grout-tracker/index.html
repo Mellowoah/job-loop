@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1b2a">
+<meta name="apple-mobile-web-app-title" content="Grout">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Grout Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--tray:#0d1b2a;--bg:#fff;--ink:#0d1b2a;--mut:#4a5a6a;--line:#c9d1d9;--acc:#ffd100;--accink:#0d1b2a;--red:#d00000;--card:#f2f4f6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1118;--ink:#f4f6f8;--mut:#9fb0bf;--line:#2b3946;--card:#16212b;--red:#ff5a5a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b1118;--ink:#f4f6f8;--mut:#9fb0bf;--line:#2b3946;--card:#16212b;--red:#ff5a5a;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:500 16px/1.35 Barlow,system-ui,sans-serif;padding-bottom:calc(290px + env(safe-area-inset-bottom,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+.num{font-family:"Barlow Condensed",system-ui,sans-serif;font-weight:800}
+header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:9;padding:8px 12px;border-bottom:2px solid var(--ink)}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat div{background:var(--card);padding:6px 8px;border-radius:6px}.stat small{color:var(--mut);display:block}.stat b{font-size:22px}
+#alert{display:none;background:var(--red);color:#fff;padding:10px 12px;font-weight:700;font-size:18px}
+#save{font-size:13px;color:var(--mut);margin-top:4px}
+main{padding:10px 12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}
+button{font:700 18px Barlow,system-ui,sans-serif;min-height:56px;border:2px solid var(--ink);border-radius:8px;background:var(--acc);color:var(--accink);padding:8px}
+button.sec{background:var(--card);color:var(--ink)}button:active{transform:scale(.97);filter:brightness(.9)}
+h2{font:800 22px "Barlow Condensed",system-ui,sans-serif;margin:18px 0 6px}
+.card{background:var(--card);border-radius:8px;padding:10px;margin:8px 0}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0}
+input{font:500 16px Barlow,system-ui,sans-serif;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%}
+.row input{flex:1;min-width:90px}.flag{color:var(--red);font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:4px;border-bottom:1px solid var(--line);text-align:left}
+.wrap{overflow-x:auto}
+#tray{position:fixed;left:0;right:0;bottom:0;background:var(--tray);color:#fff;border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));z-index:9}
+#tray.min #trayBody{display:none}
+#tray .top{display:flex;justify-content:space-between;align-items:center}
+#cnt{font-size:56px;line-height:1}
+#plus{width:100%;min-height:96px;font-size:44px;margin-top:8px}
+.tl{font-size:14px;border-left:3px solid var(--acc);padding-left:8px;margin:6px 0}
+#msg{background:var(--acc);color:var(--accink);padding:8px 10px;font-weight:700;border-radius:6px;margin-top:6px}
+.trayw{color:#ffd100;font-weight:700;font-size:14px;margin-top:4px}
+label small{display:block;color:var(--mut)}
+</style>
+</head><body>
+
+<div id="alert"></div>
+<header><div class="stat" id="stat"></div><div id="save">Loading…</div><div id="msg" hidden></div></header>
+<main id="app"></main>
+<div id="tray"><div class="top"><div><small>Pile <span id="tp"></span> · strokes</small><div class="num" id="cnt">0</div></div>
+<div class="row"><button class="sec" id="undo">Undo stroke</button><button class="sec" id="fold" aria-label="Fold counter">▾</button></div></div>
+<div id="tnone" class="trayw" hidden>No truck feeding: these strokes won't count toward any truck</div>
+<div id="trayBody"><div style="margin-top:6px">Next mark <b class="num" id="tnext" style="font-size:28px"></b> · <small id="tint"></small></div><div class="row" style="flex-wrap:nowrap;margin-top:6px"><button id="plus" style="flex:2;width:auto;margin-top:0">+1</button><button id="tmark" style="flex:1;min-height:96px" onclick="A.mark()">Mark depth</button></div></div></div>
+<div id="formv" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:30;overflow:auto;padding:calc(16px + env(safe-area-inset-top,0px)) 8px 24px"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
+<script>
+const KEY='groutTracker.v1';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,8);
+const today=()=>new Date().toLocaleDateString([],{month:'numeric',day:'numeric',year:'2-digit'});
+const blankPile=()=>({key:uid(),id:'',wall:'',date:today(),elev:'',station:'',st:{},opCount:'',reviewed:'',note:'',marks:[20,15,10,5,0],mi:0,len:23});
+let S={pile:blankPile(),strokes:0,segStart:0,pumping:false,active:null,trucks:[],ev:[],piles:[],cal:'',limit:120,sampleYd:1.1,warned:{},orphan:0};
+try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
+S.pile=Object.assign(blankPile(),{key:''},S.pile||{});S.pile.st=S.pile.st||{};
+S.piles=S.piles||[];S.ev=S.ev||[];S.trucks=S.trucks||[];S.orphan=S.orphan||0;S.warned=S.warned||{};
+// Older records: tag each event with the pile it belongs to (piles are separated by new_pile events)
+if(!S.pile.key||S.ev.some(e=>!e.pk)){let n=0;for(const e of S.ev){if(e.type==='new_pile')n++;if(!e.pk)e.pk='p'+n}S.piles.forEach((p,i)=>{if(!p.key)p.key='p'+i});if(!S.pile.key)S.pile.key='p'+n}
+const $=id=>document.getElementById(id);
+const ft=ms=>ms?new Date(ms).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));$('save').textContent='Saved on this phone '+ft(Date.now())}catch(e){$('save').textContent='Not saved: storage unavailable'}}
+let msgT;function msg(t){const m=$('msg');m.textContent=t;m.hidden=false;clearTimeout(msgT);msgT=setTimeout(()=>m.hidden=true,6000)}
+function log(type,data){const e={id:uid(),type,t:Date.now(),entered:Date.now(),pile:S.pile.id,pk:S.pile.key,strokes:S.strokes,...data};S.ev.push(e);return e}
+function pev(type,key=S.pile.key){return S.ev.filter(e=>e.pk===key&&(!type||e.type===type))}
+function tk(id){return S.trucks.find(t=>t.id===id)}
+const tname=t=>t?(t.num||'#'+t.seq):'';
+function vib(){try{navigator.vibrate&&navigator.vibrate(30)}catch(e){}}
+function tStrokes(t){return t.strokes+(S.active===t.id?Math.max(0,S.strokes-S.segStart):0)}
+function cutoff(t){const b=t.dispatch||t.batch;if(!b)return null;const [h,m]=b.split(':').map(Number);const ref=t.arrived||Date.now();const d=new Date(ref);d.setHours(h,m,0,0);
+ if(d.getTime()>ref+5*60000)d.setDate(d.getDate()-1); // batched before midnight, arrived after
+ return d.getTime()+S.limit*60000}
+function calc(t){const c=parseFloat(S.cal),q=parseFloat(t.qty);const placed=c>0?tStrokes(t)*c:null;
+ const s=t.samples.length*S.sampleYd,w=parseFloat(t.waste)||0;
+ const rem=(placed!==null&&q>=0)?q-placed-s-w:null;return{placed,s,w,rem,q}}
+function nextMark(){return S.pile.marks[S.pile.mi]}
+function flash(el){el.style.outline='4px solid #fff';setTimeout(()=>el.style.outline='',120)}
+function act(fn){fn();save();render()}
+function band(a,b){return Math.min(a,b)+'–'+Math.max(a,b)+' ft'}
+function bands(p=S.pile){const out=[];let prev=Number(p.len)||0;for(const m of p.marks){if(m!==prev)out.push(band(prev,m));prev=m}return out}
+function intervals(p=S.pile){const L=Number(p.len)||0;let rows=[],prev={d:L,s:0,good:L,after:false};
+ for(const e of pev('depth_mark',p.key)){
+  if(e.missing){rows.push({band:band(prev.d,e.depth),cum:'',d:null,cnt:0,flag:'MISSING'});prev={d:e.depth,s:prev.s,good:prev.good,after:true};continue}
+  const d=e.strokes-prev.s;
+  rows.push(prev.after?{band:band(prev.d,e.depth),cum:e.strokes,d:null,cnt:d,flag:'COMBINED: '+d+' strokes over '+band(prev.good,e.depth)}:{band:band(prev.d,e.depth),cum:e.strokes,d,cnt:d,flag:''});
+  prev={d:e.depth,s:e.strokes,good:e.depth,after:false}}
+ return rows}
+
+function tray(){const m=nextMark();$('tnext').textContent=m===undefined?'done':m+' ft';const last=pev('depth_mark').filter(e=>!e.missing).pop();$('tint').textContent='Since last mark: '+(S.strokes-(last?last.strokes:0))+' strokes';$('tnone').hidden=!!tk(S.active)}
+let rT;function soon(){clearTimeout(rT);rT=setTimeout(render,400)}
+function stroke(d){if(d<0&&S.strokes===0)return;S.strokes+=d;if(!tk(S.active))S.orphan=Math.max(0,S.orphan+d);if(d>0)vib();$('cnt').textContent=S.strokes;tray();save();soon()}
+$('plus').onclick=e=>{flash(e.target);stroke(1)};
+$('undo').onclick=()=>stroke(-1);
+$('fold').onclick=()=>{$('tray').classList.toggle('min');$('fold').textContent=$('tray').classList.contains('min')?'▴':'▾'};
+
+const armed={};
+function twoTap(k,btnId,label){if(Date.now()-(armed[k]||0)>4000){armed[k]=Date.now();const b=$(btnId);if(b)b.textContent=label||'Tap again to confirm';setTimeout(render,4200);return false}armed[k]=0;return true}
+const A={
+ newPile(){if(!twoTap('np','np'))return;act(()=>{const t=tk(S.active);if(t)t.strokes+=Math.max(0,S.strokes-S.segStart);S.piles.push({...S.pile,strokes:S.strokes,done:Date.now()});const p=S.pile;S.pile={...blankPile(),wall:p.wall,station:p.station,marks:p.marks,len:p.len};S.strokes=0;S.segStart=0;log('new_pile')})},
+ pump(){act(()=>{S.pumping=!S.pumping;log(S.pumping?'pump_start':'pump_pause')})},
+ arrive(){act(()=>{const t={id:uid(),seq:S.trucks.length?Math.max(...S.trucks.map(x=>x.seq||0))+1:1,num:'',sampleNo:'',qty:'',batch:'',dispatch:'',arrived:Date.now(),emptied:null,strokes:0,samples:[],waste:'',tests:[]};S.trucks.push(t);log('truck_arrival',{truck:t.id});vib()})},
+ mark(){act(()=>{const d=nextMark();if(d===undefined)return msg('All depth marks for this pile are done.');log('depth_mark',{depth:d,truck:S.active});S.pile.mi++;vib()})},
+ miss(){act(()=>{const d=nextMark();if(d===undefined)return;log('depth_mark',{depth:d,missing:true,truck:S.active});S.pile.mi++})},
+ ret(){act(()=>{log('grout_return',{depth:null,source:''})})},
+ sw(id){const t=tk(id);if(!t)return msg('No truck waiting. Tap Truck arrival first.');act(()=>{const o=tk(S.active);if(o)o.strokes+=Math.max(0,S.strokes-S.segStart);S.active=id;S.segStart=S.strokes;t.fed=true;log('truck_switch',{truck:id,from:o?o.id:null,depth:nextMark()??null})})},
+ next(){const t=S.trucks.find(t=>!t.fed&&!t.emptied);if(!t)return msg('No truck waiting. Tap Truck arrival first.');A.sw(t.id)},
+ empty(id){act(()=>{const t=tk(id);if(S.active===id){t.strokes+=Math.max(0,S.strokes-S.segStart);S.segStart=S.strokes;S.active=null}t.emptied=Date.now();log('truck_empty',{truck:id})})},
+ remove(id){const t=tk(id);if(!t||t.fed||t.samples.length||t.tests.length)return;if(!twoTap('rm'+id,'rm'+id))return;act(()=>{S.trucks=S.trucks.filter(x=>x!==t);S.ev=S.ev.filter(e=>!(e.type==='truck_arrival'&&e.truck===id));msg('Truck removed')})},
+ sample(id){act(()=>{const t=tk(id);const e=log('sample',{truck:id});t.samples.push(e.id)})},
+ test(id){act(()=>{const t=tk(id);log('qc_test',{truck:id});t.tests.push({id:uid(),t:Date.now(),temp:'',flow:''})})},
+ undoLast(){const types=['depth_mark','truck_arrival','truck_empty','sample','grout_return','qc_test'];const e=[...pev()].reverse().find(x=>types.includes(x.type));if(!e)return msg('Nothing to undo on this pile.');
+  const t=tk(e.truck),name=e.type.replace('_',' ');
+  if(e.type==='truck_arrival'&&t&&(t.fed||t.samples.length||t.tests.length))return msg('Truck '+tname(t)+' already has data, so its arrival can\'t be undone.');
+  if(!twoTap('undo','undoLast','Tap again: undo '+name))return;
+  act(()=>{S.ev=S.ev.filter(x=>x!==e);
+   if(e.type==='depth_mark')S.pile.mi=Math.max(0,S.pile.mi-1);
+   if(e.type==='truck_arrival')S.trucks=S.trucks.filter(x=>x!==t);
+   if(e.type==='truck_empty'&&t)t.emptied=null;
+   if(e.type==='sample'&&t)t.samples=t.samples.filter(x=>x!==e.id);
+   if(e.type==='qc_test'&&t)t.tests.pop();
+   msg('Undid '+name+(e.type==='truck_empty'?'. Tap Feed pump if it is still feeding.':''))})},
+ setT(id,f,v){const t=tk(id);t[f]=v;log('edit',{truck:id,field:f,value:v});save();render()},
+ setTest(id,i,f,v){tk(id).tests[i][f]=v;save()},
+ setDepth(id,v){const e=S.ev.find(x=>x.id===id);e.depth=v===''?null:Number(v);e.source='entered later';e.entered=Date.now();save();render()},
+ stage(k){act(()=>{const st=S.pile.st;st[k]=Date.now();if(k==='drillFinish'&&!st.groutStart)st.groutStart=st[k];log('stage',{name:k})})},
+ stageSet(k,v){if(!v){delete S.pile.st[k]}else{const [h,m]=v.split(':').map(Number);const d=new Date();d.setHours(h,m,0,0);S.pile.st[k]=d.getTime();log('stage',{name:k,edited:true})}save();render()},
+ pset(f,v){S.pile[f]=v;save();render()},
+ cfg(f,v){if(f==='marks'){S.pile.marks=v.split(',').map(x=>x.trim()).filter(x=>x!=='').map(Number).filter(x=>!isNaN(x));S.pile.mi=pev('depth_mark').length}else if(f==='pile')S.pile.id=v;else S[f]=v;save();render()},
+ reset(){if(!twoTap('reset','rs','Tap again to delete everything'))return;try{localStorage.removeItem(KEY)}catch(e){}location.reload()}
+};
+let pend=false;
+function render(){clearTimeout(rT);
+ $('cnt').textContent=S.strokes;$('tp').textContent=S.pile.id;tray();
+ const ts=S.trucks,sum=f=>ts.reduce((a,t)=>a+f(t),0);
+ const recv=sum(t=>parseFloat(t.qty)||0),samp=sum(t=>t.samples.length*S.sampleYd),waste=sum(t=>parseFloat(t.waste)||0);
+ const pl=parseFloat(S.cal)>0?sum(t=>tStrokes(t)*parseFloat(S.cal)):null;
+ const at=tk(S.active),nm=nextMark();
+ $('stat').innerHTML=`<div><small>Truck</small><b class="num">${at?esc(at.num||'(no #)'):'none'}</b></div><div><small>Next mark</small><b class="num">${nm===undefined?'done':nm+' ft'}</b></div><div><small>${S.pumping?'Pumping':'Paused'}</small><b class="num">${ts.filter(t=>!t.emptied&&!t.fed).length} queued</b></div>`;
+ const ae=document.activeElement;if(ae&&ae.tagName==='INPUT'){pend=true;return}pend=false;
+ const sh=v=>v===null?'pending':v.toFixed(1);
+ let h=`<div class="card"><b>Pile setup</b><div class="row"><input id="f-pile" placeholder="Pile #" value="${esc(S.pile.id)}" onchange="A.cfg('pile',this.value)"><input id="f-wall" placeholder="Wall #" value="${esc(S.pile.wall)}" onchange="A.pset('wall',this.value)"></div><div class="row"><input id="f-sta" placeholder="Station" value="${esc(S.pile.station)}" onchange="A.pset('station',this.value)"><input id="f-elev" placeholder="Elev" value="${esc(S.pile.elev)}" onchange="A.pset('elev',this.value)"></div><div class="row"><input id="f-date" placeholder="Date" value="${esc(S.pile.date)}" onchange="A.pset('date',this.value)"><label style="flex:1;min-width:90px"><small>Pile length (ft)</small><input id="f-len" inputmode="decimal" value="${esc(S.pile.len)}" onchange="A.pset('len',Number(this.value)||0)"></label></div><div class="row"><button id="np" class="sec" style="flex:1" onclick="A.newPile()">Start new pile</button></div></div><div class="grid"><button id="bp" onclick="A.pump()">${S.pumping?'Pause pumping':'Start / resume pumping'}</button><button onclick="A.arrive()">Truck arrival</button>
+ <button onclick="A.mark()">Mark depth ${nm===undefined?'':nm+' ft'}</button><button class="sec" onclick="A.miss()">Missed this mark</button>
+ <button onclick="A.ret()">Grout return</button><button class="sec" onclick="A.next()">Switch to next queued</button></div><button id="undoLast" class="sec" style="width:100%" onclick="A.undoLast()">Undo last action</button>`;
+ const SG=[['drillStart','Drill start'],['drillFinish','Drill finish'],['groutStart','Grout start'],['groutFinish','Grout finish'],['reinfStart','Reinforce start'],['reinfFinish','Reinforce finish']];
+ const tv=k=>{const v=S.pile.st[k];if(!v)return'';const d=new Date(v);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+ h+=`<button style="width:100%;margin-top:8px" onclick="showForm()">View paper form</button><h2>Pile ${esc(S.pile.id)} stages</h2><div class="card">`+SG.map(([k,l])=>`<div class="row"><button class="sec" style="flex:1" onclick="A.stage('${k}')">${l}</button><input id="st-${k}" type="time" style="max-width:130px" value="${tv(k)}" onchange="A.stageSet('${k}',this.value)"></div>`).join('')+`</div>`;
+ h+=`<h2>Trucks</h2>`;
+ if(!ts.length)h+=`<div class="card">No trucks yet. Tap Truck arrival to log one.</div>`;
+ for(const t of ts){const c=calc(t),co=cutoff(t),canRm=!t.fed&&!t.samples.length&&!t.tests.length;
+  h+=`<div class="card"><div class="row"><b>#${t.seq||''}</b><input id="t-${t.id}-num" placeholder="Truck I.D. #" value="${esc(t.num)}" onchange="A.setT('${t.id}','num',this.value)"><input id="t-${t.id}-qty" placeholder="Ticket yd³" inputmode="decimal" value="${esc(t.qty)}" onchange="A.setT('${t.id}','qty',this.value)"></div>
+  <div class="row"><label>Dispatch<input id="t-${t.id}-disp" type="time" value="${esc(t.dispatch)}" onchange="A.setT('${t.id}','dispatch',this.value)"></label><label>Batch (if no dispatch)<input id="t-${t.id}-batch" type="time" value="${esc(t.batch)}" onchange="A.setT('${t.id}','batch',this.value)"></label></div>
+  <div>Arrived ${ft(t.arrived)} · ${t.emptied?'emptied '+ft(t.emptied):t.fed?(S.active===t.id?'<b>feeding</b>':'fed earlier'):'queued'} · cutoff ${co?ft(co)+(t.dispatch?'':' <span class=flag>(from batch: no dispatch time)</span>'):'<span class=flag>no dispatch time</span>'}</div>
+  <div>Strokes ${tStrokes(t)} · placed ${sh(c.placed)} yd³ · samples ${t.samples.length} (−${c.s.toFixed(1)}) · waste ${c.w} · <b>remaining ${c.rem===null?'<span class=flag>unresolved</span>':c.rem.toFixed(1)} yd³</b></div>
+  <div class="row"><button class="sec" onclick="A.sw('${t.id}')">Feed pump</button><button class="sec" onclick="A.sample('${t.id}')">Sample taken</button><button class="sec" onclick="A.test('${t.id}')">QC test</button><button class="sec" onclick="A.empty('${t.id}')">Empty</button>${canRm?`<button class="sec" id="rm${t.id}" onclick="A.remove('${t.id}')">Remove</button>`:''}</div>
+  <div class="row"><input id="t-${t.id}-sn" placeholder="Sample #" value="${esc(t.sampleNo)}" onchange="A.setT('${t.id}','sampleNo',this.value)"><input id="t-${t.id}-waste" placeholder="Waste yd³" inputmode="decimal" value="${esc(t.waste)}" onchange="A.setT('${t.id}','waste',this.value)"></div>
+  ${t.tests.map((x,i)=>`<div class="row">Test ${ft(x.t)}<input id="t-${t.id}-tt${i}" placeholder="°F" inputmode="decimal" value="${esc(x.temp)}" onchange="A.setTest('${t.id}',${i},'temp',this.value)"><input id="t-${t.id}-tf${i}" placeholder="Flow s" inputmode="decimal" value="${esc(x.flow)}" onchange="A.setTest('${t.id}',${i},'flow',this.value)"></div>`).join('')}</div>`}
+ h+=`<div class="card"><b>Ledger (yd³)</b><br>Arrived ${recv.toFixed(1)} · used ${sh(pl)} · samples ${samp.toFixed(1)} · waste ${waste.toFixed(1)} · carryover ${pl===null?'<span class=flag>pending calibration</span>':(recv-pl-samp-waste).toFixed(1)}${S.orphan?` · <span class=flag>${S.orphan} strokes not on any truck</span>`:''}</div>`;
+ const iv=intervals();
+ h+=`<h2>Pile ${esc(S.pile.id)} intervals · total ${S.strokes}</h2><div class="wrap"><table><tr><th>Band</th><th>Cum</th><th>Strokes</th><th>Flag</th></tr>${bands().map(b=>{const r=iv.find(r=>r.band===b);return `<tr><td>${b}</td><td>${r?r.cum:''}</td><td>${r&&r.d!=null?r.d:''}</td><td class="flag">${r?esc(r.flag):''}</td></tr>`}).join('')}<tr><td><b>Total</b></td><td></td><td><b>${S.strokes}</b></td><td></td></tr></table></div>`;
+ const gr=pev('grout_return');
+ if(gr.length)h+=`<h2>Grout return</h2>`+gr.map(e=>`<div class="row">${ft(e.t)} · strokes ${e.strokes}<input id="gr-${e.id}" placeholder="Depth ft (fill later)" inputmode="decimal" value="${e.depth??''}" onchange="A.setDepth('${e.id}',this.value)">${e.depth==null?'<span class=flag>missing</span>':''}</div>`).join('');
+ h+=`<h2>Closeout</h2><div class="card"><div>My count <b>${S.strokes}</b></div><div class="row"><input id="f-op" placeholder="Operator count" inputmode="numeric" value="${esc(S.pile.opCount)}" onchange="A.pset('opCount',this.value)"><input id="f-rev" placeholder="Reviewed total" inputmode="numeric" value="${esc(S.pile.reviewed)}" onchange="A.pset('reviewed',this.value)"></div><div class="row"><input id="f-note" placeholder="Explanation" value="${esc(S.pile.note)}" onchange="A.pset('note',this.value)"></div>${S.pile.opCount&&Number(S.pile.opCount)!==S.strokes?'<div class=flag>Counts differ by '+(Number(S.pile.opCount)-S.strokes)+'</div>':''}</div>`;
+ h+=`<h2>Review</h2><div class="card">${[
+  ts.filter(t=>!t.emptied).length+' trucks not emptied',SG.filter(([k])=>!S.pile.st[k]).length+' pile stages not stamped',
+  iv.filter(r=>r.flag==='MISSING').length+' missing depth marks',
+  gr.filter(e=>e.depth==null).length+' grout returns without depth',
+  ts.filter(t=>t.fed&&!t.qty).length+' fed trucks without ticket qty',
+  ts.filter(t=>!t.emptied&&!t.dispatch).length+' open trucks without dispatch time',
+  S.orphan?`<span class=flag>${S.orphan} strokes pumped with no truck feeding (not in any truck's yardage)</span>`:'',
+  S.cal===''?'<span class=flag>Calibration not set: placed volume pending</span>':'Calibration '+esc(S.cal)+' yd³/stroke'
+ ].filter(Boolean).map(x=>'<div>'+x+'</div>').join('')}</div>`;
+ h+=`<h2>Pile ${esc(S.pile.id)} timeline</h2>`+[...pev()].reverse().map(e=>`<div class="tl">${ft(e.t)} · ${e.type.replace('_',' ')}${e.name?' '+e.name:''}${e.depth!=null?' @ '+e.depth+' ft':''} · strokes ${e.strokes}${e.truck?' · '+esc(tname(tk(e.truck))||'truck'):''}${e.missing?' <span class=flag>missed</span>':''}</div>`).join('');
+ h+=`<h2>Settings</h2><div class="card"><div class="row"><input id="s-samp" inputmode="decimal" value="${esc(S.sampleYd)}" onchange="A.cfg('sampleYd',Number(this.value)||0)"><small>yd³ deducted per sample (0 if none)</small></div>
+ <div class="row"><input id="s-marks" value="${esc(S.pile.marks.join(','))}" onchange="A.cfg('marks',this.value)"><small>Marks in field order (ft)</small></div>
+ <div class="row"><input id="s-cal" placeholder="Pump calibration yd³ per stroke (verify)" inputmode="decimal" value="${esc(S.cal)}" onchange="A.cfg('cal',this.value)"></div>
+ <div class="row"><input id="s-lim" inputmode="numeric" value="${esc(S.limit)}" onchange="A.cfg('limit',Number(this.value)||120)"><small>Cutoff minutes from dispatch time (batch time if no dispatch). Confirm against your spec.</small></div>
+ <div class="row"><button onclick="showForm()">View form</button><button onclick="exportX()">Export Excel</button><button class="sec" onclick="backup()">Backup JSON</button><button class="sec" id="rs" onclick="A.reset()">Clear all</button></div></div>`;
+ $('app').innerHTML=h}
+document.addEventListener('focusout',()=>setTimeout(()=>{if(pend)render()},0));
+function showForm(){
+ const fh=ms=>{if(!ms)return'';const d=new Date(ms);return (d.getHours()%12||12)+':'+String(d.getMinutes()).padStart(2,'0')};
+ const fs=s=>{if(!s)return'';const [h,m]=s.split(':').map(Number);return (h%12||12)+':'+String(m).padStart(2,'0')};
+ const P=S.pile,st=P.st,iv=intervals(),gr=pev('grout_return')[0];
+ const used=S.trucks.filter(t=>pev(null).some(e=>e.truck===t.id));
+ const ts=used.length?used:[{seq:'',num:'',tests:[]}];
+ const CL={y:'#ffd100',g:'#c8ced4',t:'#e0c080',b:'#b8c9dc'};
+ const one=k=>(t,i)=>i?'':fh(st[k]);const bl=bands();
+ const rows=[['Pile / Date',(t,i)=>i?'':P.id+' / '+P.date,''],['Truck number',t=>t.seq,''],['Truck I.D. #',t=>t.num,''],['Dispatch time',t=>fs(t.dispatch),''],['Batch time',t=>fs(t.batch),''],['Arrival time',t=>fh(t.arrived),''],['Truck empty',t=>fh(t.emptied),''],
+ ['Drill start',one('drillStart'),'y'],['Drill finish',one('drillFinish'),'y'],['Grout / hole start',one('groutStart'),'g'],['Grout / hole finish',one('groutFinish'),'g'],
+ ['Grout return',(t,i)=>i?'':(gr?(gr.depth!=null?gr.depth:'?'):''),'g'],['Reinforce start',one('reinfStart'),'t'],['Reinforce finish',one('reinfFinish'),'t'],
+ ['Grout temp',t=>(t.tests&&t.tests[0]||{}).temp,''],['Flow cone time',t=>(t.tests&&t.tests[0]||{}).flow,''],['Sample #',t=>t.sampleNo,''],
+ ...bl.map((b,bi)=>['Depth '+b.replace(' ft',''),(t,i)=>{if(i)return'';const r=iv.find(r=>r.band===b);return r?(r.flag?'?':r.d):''},bi===0?'t':'b']),['Total strokes',(t,i)=>{if(i)return'';const s=iv.reduce((a,r)=>a+(r.cnt||0),0);return S.strokes+(iv.length&&s!==S.strokes?' (marks '+s+')':'')},'b']];
+ const cell='border:1px solid #777;height:36px;padding:2px 6px';
+ let h=`<div class="row"><button onclick="document.getElementById('formv').style.display='none'">Close</button><button class="sec" onclick="showForm()">Refresh</button></div><div class="wrap"><table style="background:#fff;color:#0d1b2a;min-width:320px">`;
+ for(const [l,f,c] of rows)h+=`<tr><td style="${cell};background:${CL[c]||'#fff'};font-weight:700;white-space:nowrap">${esc(l)}</td>`+ts.map((t,i)=>`<td style="${cell};min-width:80px;font-size:20px">${esc(f(t,i))}</td>`).join('')+'</tr>';
+ const comb=iv.filter(r=>r.flag.startsWith('COMBINED'));
+ const recv=S.trucks.reduce((a,t)=>a+(parseFloat(t.qty)||0),0),c=parseFloat(S.cal)>0?S.trucks.reduce((a,t)=>a+tStrokes(t)*parseFloat(S.cal),0):null;
+ h+=`</table></div><table style="background:#fff;color:#0d1b2a;margin-top:12px">`+[['Arrived',recv.toFixed(2)],['Used',c===null?'pending':c.toFixed(2)],['Carryover',c===null?'pending':(recv-c-S.trucks.reduce((a,t)=>a+t.samples.length*S.sampleYd+(parseFloat(t.waste)||0),0)).toFixed(2)],['Wall',P.wall||''],['Elev',P.elev],['Station',P.station],['My count / operator',S.strokes+' / '+(P.opCount||'—')],...comb.map(r=>['Missed mark',r.flag.replace('COMBINED: ','')])].map(([l,v])=>`<tr><td style="${cell};background:#c8ced4;font-weight:700">${esc(l)}</td><td style="${cell};min-width:100px;font-size:20px">${esc(v)}</td></tr>`).join('')+`</table><p style="color:var(--mut)">? means a reading is missing. Screenshot this screen to save or share it.</p>`;
+ const el=$('formv');el.innerHTML=h;el.style.display='block'}
+async function offer(filename,data,fallback){let dl=null;try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null}catch(e){}
+ if(dl){try{await dl.save({filename,data});msg('Saved '+filename)}catch(e){msg(e&&e.code==='declined'?'Save cancelled.':'Could not save the file here. Use View paper form and take a screenshot.')}return}
+ try{fallback()}catch(e){msg('Could not save the file here. Use View paper form and take a screenshot.')}}
+function stamp(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function exportX(){if(typeof XLSX==='undefined')return msg('Excel export needs a connection to load. Try again with signal.');try{const ex=v=>v?new Date(v).toISOString():'';const P=S.pile;
+ const ev=S.ev.map(e=>({ID:e.id,Type:e.type,EventTime:new Date(e.t).toISOString(),EnteredTime:new Date(e.entered).toISOString(),Pile:e.pile,Truck:tk(e.truck)?.num||e.truck||'',DepthFt:e.depth??'',CumStrokes:e.strokes,Missing:e.missing?'MISSING':''}));
+ const tr=S.trucks.map(t=>{const c=calc(t);return{ID:t.id,Seq:t.seq,TruckID:t.num,SampleNo:t.sampleNo||'',TicketYd3:t.qty,Batch:t.batch,Dispatch:t.dispatch,Arrived:new Date(t.arrived).toISOString(),Emptied:t.emptied?new Date(t.emptied).toISOString():'',CutoffEst:cutoff(t)?new Date(cutoff(t)).toISOString():'',Strokes:tStrokes(t),PlacedYd3:c.placed??'PENDING',SamplesYd3:c.s,WasteYd3:c.w,RemainingYd3:c.rem??'UNRESOLVED',Tests:t.tests.map(x=>x.temp+'F/'+x.flow+'s@'+ft(x.t)).join('; ')}});
+ const all=[...S.piles,{...P,strokes:S.strokes}];
+ const pr=a=>({Pile:a.id,Wall:a.wall,Date:a.date,LengthFt:a.len,Elev:a.elev,Station:a.station,DrillStart:ex(a.st&&a.st.drillStart),DrillFinish:ex(a.st&&a.st.drillFinish),GroutStart:ex(a.st&&a.st.groutStart),GroutFinish:ex(a.st&&a.st.groutFinish),ReinforceStart:ex(a.st&&a.st.reinfStart),ReinforceFinish:ex(a.st&&a.st.reinfFinish),MyStrokes:a.strokes,OperatorCount:a.opCount,ReviewedTotal:a.reviewed,Explanation:a.note});
+ const iv=all.flatMap(p=>intervals(p).map(r=>({Pile:p.id,Band:r.band,CumStrokes:r.cum,Strokes:r.d??'',Flag:r.flag})));
+ const wb=XLSX.utils.book_new();[['Events',ev],['Trucks_QC',tr],['Piles',all.map(pr)],['Intervals',iv],['Yardage',tr.map(t=>({Truck:t.TruckID,Ticket:t.TicketYd3,Placed:t.PlacedYd3,Samples:t.SamplesYd3,Waste:t.WasteYd3,Remaining:t.RemainingYd3,CalYd3PerStroke:S.cal||'NOT SET',StrokesNoTruck:S.orphan}))]].forEach(([n,d])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(d.length?d:[{}]),n));
+ const name='grout-'+stamp()+(P.id?'-pile-'+P.id.replace(/[^\w-]/g,''):'')+'.xlsx';
+ const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+ offer(name,new Blob([buf]),()=>XLSX.writeFile(wb,name))}catch(e){msg('Export failed: '+e.message)}}
+function backup(){const json=JSON.stringify(S),name='grout-backup-'+stamp()+'.json';
+ offer(name,json,()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([json],{type:'application/json'}));a.download=name;a.click()})}
+function tick(){const now=Date.now();let worst=null;
+ for(const t of S.trucks){if(t.emptied)continue;const co=cutoff(t);if(!co)continue;const r=co-now;if(r<=600000&&(!worst||r<worst.r))worst={t,r,co}}
+ const a=$('alert');if(!worst){a.style.display='none';return}
+ a.style.display='block';
+ if(worst.r<=0)a.textContent='▲ Truck '+(worst.t.num||'?')+' — Cutoff reached ('+ft(worst.co)+')';
+ else{const m=Math.floor(worst.r/60000),s=Math.floor(worst.r/1000)%60;a.textContent='▲ Truck '+(worst.t.num||'?')+' — '+m+':'+String(s).padStart(2,'0')+' left · cutoff '+ft(worst.co)}
+ if(!S.warned[worst.t.id]){S.warned[worst.t.id]=1;vib();save()}}
+setInterval(tick,1000);render();tick();save();
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+try{navigator.wakeLock&&navigator.wakeLock.request('screen').catch(()=>{})}catch(e){}
+</script>
+<script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
+</body></html>
